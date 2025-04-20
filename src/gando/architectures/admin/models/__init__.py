@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
+from django.utils.html import format_html
 
 
 def verbose_name(value: str):
@@ -71,16 +72,28 @@ class BaseModelAdmin(admin.ModelAdmin):
             self.updated_dt_field_in_display_list
             if hasattr(self, 'updated_dt_field_in_display_list') else False)
 
-        tmp = ['available'] if 'available' not in value and available_field_in_display_list else []
-        tmp += ['id_'] if 'id' not in value and id_field_in_display_list else []
+        tmp = ['id_'] if 'id' not in value and id_field_in_display_list else []
         tmp += value
-        tmp += ['created_dt'] if 'created_dt' not in value and created_dt_field_in_display_list else []
-        tmp += ['updated_dt'] if 'updated_dt' not in value and updated_dt_field_in_display_list else []
+        tmp += ['available_'] if 'available' not in value and available_field_in_display_list else []
+        tmp += ['created_at_'] if 'created_dt' not in value and created_dt_field_in_display_list else []
+        tmp += ['updated_at_'] if 'updated_dt' not in value and updated_dt_field_in_display_list else []
 
         self._list_display = tmp
 
+    def available_(self, obj):
+        if obj.available == 1:
+            return format_html('<span style="color: green;">✓</span>')
+        else:
+            return format_html('<span style="color: red;">✗</span>')
+
     def id_(self, obj):
-        return str(obj.id)[:]
+        return str(obj.id)[:8]
+
+    def created_at_(self, obj):
+        return obj.created_dt.strftime("%y/%m/%d-%H:%M")
+
+    def updated_at_(self, obj):
+        return obj.updated_dt.strftime("%y/%m/%d-%H:%M")
 
     _list_display_links = []
 
@@ -95,9 +108,9 @@ class BaseModelAdmin(admin.ModelAdmin):
         # available_field_in_display_list = (
         #     self.available_field_in_display_list
         #     if hasattr(self, 'available_field_in_display_list') else False)
-        # id_field_in_display_list = (
-        #     self.id_field_in_display_list
-        #     if hasattr(self, 'id_field_in_display_list') else False)
+        id_field_in_display_list = (
+            self.id_field_in_display_list
+            if hasattr(self, 'id_field_in_display_list') else False)
         # created_dt_field_in_display_list = (
         #     self.created_dt_field_in_display_list
         #     if hasattr(self, 'created_dt_field_in_display_list') else False)
@@ -106,8 +119,8 @@ class BaseModelAdmin(admin.ModelAdmin):
         #     if hasattr(self, 'updated_dt_field_in_display_list') else False)
 
         # tmp = ['available'] if 'available' not in value and available_field_in_display_list else []
-        # tmp = ['id'] if 'id' not in value and id_field_in_display_list else []
-        tmp = value
+        tmp = ['id_'] if 'id' not in value and id_field_in_display_list else []
+        tmp += value
         # tmp += ['created_dt'] if 'created_dt' not in value and created_dt_field_in_display_list else []
         # tmp += ['updated_dt'] if 'updated_dt' not in value and updated_dt_field_in_display_list else []
 
