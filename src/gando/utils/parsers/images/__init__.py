@@ -20,6 +20,8 @@ class Image:
 
         self._open_image = None
 
+        self._thumbnails = None
+
     def get_width(self):
         if not self._width:
             self._width = self.__open_image().width
@@ -50,6 +52,11 @@ class Image:
             self._b64 = self.__b64()
         return self._b64
 
+    def get_thumbnails(self):
+        if not self._thumbnails:
+            self._thumbnails = self.__thumbnails()
+        return self._thumbnails
+
     def __open_image(self):
         if not self._open_image:
             self._open_image = ImagePIL.open(self.__src)
@@ -57,16 +64,18 @@ class Image:
 
     def __b64(self):
         try:
-            (b64width, b64height) = (self.get_width() // 8, self.get_height() // 8)
+            max_wh = max(self.get_width(), self.get_height())
+            b64width = round((self.get_width() / max_wh) * 64)
+            b64height = round((self.get_height() / max_wh) * 64)
 
             mimetype = self.__open_image().get_format_mimetype()
-            im_resized = self.__open_image().resize((b64width, b64height))
-            blurred_image = im_resized.filter(ImageFilter.BLUR)
+            img = self.__open_image().resize((b64width, b64height))
+            img = img.filter(ImageFilter.BLUR)
             buffered = io.BytesIO()
-            blurred_image.save(buffered, format='PNG')
-            encoded_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
+            img.save(buffered, format='PNG')
+            img = base64.b64encode(buffered.getvalue()).decode('utf-8')
 
-            return f'data:{mimetype};base64,{encoded_image}'
+            return f'data:{mimetype};base64,{img}'
         except:
             return ''
 
@@ -108,3 +117,25 @@ class Image:
 
         else:
             return 169
+
+    def __thumbnails(self) -> dict:
+        sizes = [
+            {
+                'width': 64,
+                'height': 64,
+            },
+        ]
+        ret = {}
+        try:
+            for s in sizes:
+                mimetype = self.__open_image().get_format_mimetype()
+                img = self.__open_image().resize((s['width'], s['height']))
+                buffered = io.BytesIO()
+                img.save(buffered, format='PNG')
+                img = base64.b64encode(buffered.getvalue()).decode('utf-8')
+
+                ret[f'{s['width']}X{s['height']}'] = f'data:{mimetype};base64,{img}'
+
+            return ret
+        except:
+            return ret

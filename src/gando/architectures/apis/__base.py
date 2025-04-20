@@ -1,8 +1,39 @@
-from inspect import currentframe, getframeinfo
-from pydantic import BaseModel
-from typing import Any
 import importlib
+from inspect import currentframe, getframeinfo
+from typing import Any
 
+from django.core.exceptions import PermissionDenied
+from django.db import connections
+from django.http import Http404
+from pydantic import BaseModel
+from rest_framework import exceptions
+from rest_framework import status
+from rest_framework.exceptions import ErrorDetail
+from rest_framework.generics import (
+    CreateAPIView as DRFGCreateAPIView,
+    ListAPIView as DRFGListAPIView,
+    RetrieveAPIView as DRFGRetrieveAPIView,
+    UpdateAPIView as DRFGUpdateAPIView,
+    DestroyAPIView as DRFGDestroyAPIView,
+)
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from gando.config import SETTINGS
+from gando.http.api_exceptions.developers import (
+    DeveloperResponseAPIMessage,
+
+    DeveloperExceptionResponseAPIMessage,
+    DeveloperErrorResponseAPIMessage,
+    DeveloperWarningResponseAPIMessage,
+)
+from gando.http.api_exceptions.endusers import (
+    EnduserResponseAPIMessage,
+
+    EnduserFailResponseAPIMessage,
+    EnduserErrorResponseAPIMessage,
+    EnduserWarningResponseAPIMessage,
+)
 from gando.http.responses.string_messages import (
     InfoStringMessage,
     ErrorStringMessage,
@@ -23,22 +54,30 @@ from gando.utils.messages import (
     DefaultResponse421FailMessage,
     DefaultResponse500FailMessage,
 )
-from gando.config import SETTINGS
 
-from rest_framework.exceptions import ErrorDetail
-from rest_framework import exceptions, status
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework.generics import (
-    CreateAPIView as DRFGCreateAPIView,
-    ListAPIView as DRFGListAPIView,
-    RetrieveAPIView as DRFGRetrieveAPIView,
-    UpdateAPIView as DRFGUpdateAPIView,
-    DestroyAPIView as DRFGDestroyAPIView,
-)
+
+def _valid_user(user_id, request):
+    from django.contrib.auth import get_user_model
+
+    try:
+        obj = get_user_model().objects.get(id=request.user.id)
+        obj_id = obj.id if isinstance(obj.id, int) else str(obj.id)
+        if obj_id == user_id:
+            return True
+        return False
+    except Exception as exc:
+        return False
+
+
+def set_rollback():
+    for db in connections.all():
+        if db.settings_dict['ATOMIC_REQUESTS'] and db.in_atomic_block:
+            db.set_rollback(True)
 
 
 class BaseAPI(APIView):
+    pagination = True
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -62,6 +101,7 @@ class BaseAPI(APIView):
 
         self.__content_type: str | None = None
         self.__exception_status: bool = False
+        self.exc = None
 
     def __paste_to_request_func_loader(self, f, request, *args, **kwargs):
         try:
@@ -95,9 +135,77 @@ class BaseAPI(APIView):
         return ret
 
     def handle_exception(self, exc):
+        self.exc = exc
+        if isinstance(exc, DeveloperResponseAPIMessage):
+            if isinstance(exc, DeveloperErrorResponseAPIMessage):
+                self.set_status_code(exc.status_code)
+                self.set_error_message(key=exc.code, value=exc.message)
+
+            elif isinstance(exc, DeveloperExceptionResponseAPIMessage):
+                self.set_status_code(exc.status_code)
+                self.set_exception_message(key=exc.code, value=exc.message)
+
+            elif isinstance(exc, DeveloperWarningResponseAPIMessage):
+                self.set_status_code(exc.status_code)
+                self.set_warning_message(key=exc.code, value=exc.message)
+
+        if isinstance(exc, EnduserResponseAPIMessage):
+            if isinstance(exc, EnduserErrorResponseAPIMessage):
+                self.set_status_code(exc.status_code)
+                self.add_error_message_to_messenger(code=exc.code, message=exc.message)
+
+            elif isinstance(exc, EnduserFailResponseAPIMessage):
+                self.set_status_code(exc.status_code)
+                self.add_fail_message_to_messenger(code=exc.code, message=exc.message)
+
+            elif isinstance(exc, EnduserWarningResponseAPIMessage):
+                self.set_status_code(exc.status_code)
+                self.add_warning_message_to_messenger(code=exc.code, message=exc.message)
+
         if SETTINGS.EXCEPTION_HANDLER.HANDLING:
             return self._handle_exception_gando_handling_true(exc)
         return self._handle_exception_gando_handling_false(exc)
+
+    def exception_handler(self, exc, context):
+        """
+        Returns the response that should be used for any given exception.
+
+        By default, we handle the REST framework `APIException`, and also
+        Django's built-in `Http404` and `PermissionDenied` exceptions.
+
+        Any unhandled exceptions may return `None`, which will cause a 500 error
+        to be raised.
+        """
+        if isinstance(exc, Http404):
+            exc = exceptions.NotFound(*(exc.args))
+        elif isinstance(exc, PermissionDenied):
+            exc = exceptions.PermissionDenied(*(exc.args))
+
+        if isinstance(exc, exceptions.APIException):
+            headers = {}
+            if getattr(exc, 'auth_header', None):
+                headers['WWW-Authenticate'] = exc.auth_header
+            if getattr(exc, 'wait', None):
+                headers['Retry-After'] = '%d' % exc.wait
+
+            self._exception_handler_messages(exc.detail)
+
+            set_rollback()
+            return Response(status=exc.status_code, headers=headers)
+
+        return None
+
+    def _exception_handler_messages(self, msg, base_key=None):
+        if isinstance(msg, list):
+            for e in msg:
+                self._exception_handler_messages(e)
+        elif isinstance(msg, dict):
+            for k, v in msg.items():
+                self._exception_handler_messages(v, base_key=k)
+        else:
+            key = msg.code if hasattr(msg, 'code') else 'e'
+            key = base_key + '__' + key if base_key else key
+            self.set_error_message(key=key, value=str(msg))
 
     def _handle_exception_gando_handling_true(self, exc):
         """
@@ -113,10 +221,8 @@ class BaseAPI(APIView):
             else:
                 exc.status_code = status.HTTP_403_FORBIDDEN
 
-        exception_handler = self.get_exception_handler()
-
         context = self.get_exception_handler_context()
-        response = exception_handler(exc, context)
+        response = self.exception_handler(exc, context)
 
         if response is None:
             response = Response()
@@ -166,10 +272,8 @@ class BaseAPI(APIView):
             else:
                 exc.status_code = status.HTTP_403_FORBIDDEN
 
-        exception_handler = self.get_exception_handler()
-
         context = self.get_exception_handler_context()
-        response = exception_handler(exc, context)
+        response = self.exception_handler(exc, context)
 
         if response is None:
             self.raise_uncaught_exception(exc)
@@ -178,6 +282,11 @@ class BaseAPI(APIView):
         return response
 
     def finalize_response(self, request, response, *args, **kwargs):
+        mock_server_status = self.request.headers.get('Mock-Server-Status') or False
+        mock_server_switcher = self.mock_server_switcher if hasattr(self, 'mock_server_switcher') else False
+        if mock_server_switcher and mock_server_status and hasattr(self, 'mock_server'):
+            return super().finalize_response(request, self.mock_server(), *args, **kwargs)
+
         if isinstance(response, Response):
             self.helper()
 
@@ -218,7 +327,31 @@ class BaseAPI(APIView):
 
         return super().finalize_response(request, response, *args, **kwargs)
 
+    def _response_validator(self, input_data):
+        if isinstance(input_data, list):
+            if not len(input_data):
+                return None
+            return [self._response_validator(i) for i in input_data]
+        if isinstance(input_data, dict):
+            if not len(input_data.keys()):
+                return None
+            ret = {}
+            for k, v in input_data.items():
+                ret[k] = self._response_validator(v)
+            return ret
+        return input_data
+
     def response_context(self, data=None):
+        ret = None
+
+        self.response_schema_version = self.request.headers.get('Response-Schema-Version') or '1.0.0'
+        if self.response_schema_version == '2.0.0':
+            ret = self._response_context_v_2_0_0_response(data)
+        else:
+            ret = self._response_context_v_1_0_0_response(data)
+        return self._response_validator(ret)
+
+    def _response_context_v_1_0_0_response(self, data=None):
         self.__data = self.__set_messages_from_data(data)
 
         status_code = self.get_status_code()
@@ -243,7 +376,6 @@ class BaseAPI(APIView):
             'status_code': status_code,
 
             'has_warning': has_warning,
-            'exception_status': exception_status,
 
             'monitor': self.monitor_play(monitor),
 
@@ -252,11 +384,46 @@ class BaseAPI(APIView):
             'many': many,
             'data': data,
         }
-        if self.__debug_status:
-            # tmp['headers'] = headers
-            pass
-        if self.__messages_response_displayed:
+        if self.__development_messages_display():
             tmp['development_messages'] = messages
+
+        if self.__exception_status_display():
+            tmp['exception_status'] = exception_status
+
+        ret = tmp
+        return ret
+
+    def _response_context_v_2_0_0_response(self, data=None):
+        self.__data = self.__set_messages_from_data(data)
+
+        status_code = self.get_status_code()
+        content_type = self.get_content_type()
+        data = self.validate_data_v_2_0_0_response()
+        many = self.__many_v_2_0_0_response()
+
+        monitor = self.__monitor
+
+        has_warning = self.__has_warning()
+        exception_status = self.get_exception_status()
+
+        messages = self.__messages()
+
+        success = self.__success()
+
+        headers = self.get_headers()
+
+        tmp = {
+            'success': success,
+            'status_code': status_code,
+            'messenger': self.__messenger,
+        }
+        tmp.update(data)
+
+        if self.__development_messages_display():
+            tmp['development_messages'] = messages
+
+        if self.__exception_status_display():
+            tmp['exception_status'] = exception_status
 
         ret = tmp
         return ret
@@ -345,11 +512,24 @@ class BaseAPI(APIView):
         if isinstance(self.__data, list):
             return True
         if (
-            isinstance(self.__data, dict) and
-            'count' in self.__data and
-            'next' in self.__data and
-            'previous' in self.__data and
-            'results' in self.__data
+                isinstance(self.__data, dict) and
+                'count' in self.__data and
+                'next' in self.__data and
+                'previous' in self.__data and
+                'results' in self.__data
+        ):
+            return True
+        return False
+
+    def __many_v_2_0_0_response(self):
+        if isinstance(self.__data, list):
+            return True
+        if (
+                isinstance(self.__data, dict) and
+                'count' in self.__data and
+                'next' in self.__data and
+                'previous' in self.__data and
+                'result' in self.__data
         ):
             return True
         return False
@@ -367,11 +547,13 @@ class BaseAPI(APIView):
         return False
 
     def __success(self):
+        if 200 <= self.get_status_code() < 300:
+            return True
         if (
-            len(self.__errors_message) == 0 and
-            len(self.__exceptions_message) == 0 and
-            not self.__exception_status and
-            not self.__fail_message_messenger()
+                len(self.__errors_message) == 0 and
+                len(self.__exceptions_message) == 0 and
+                not self.__exception_status and
+                not self.__fail_message_messenger()
         ):
             return True
         return False
@@ -467,13 +649,119 @@ class BaseAPI(APIView):
         ret = tmp
         return ret
 
+    def validate_data_v_2_0_0_response(self):
+        data = self.__data
+
+        if data is None:
+            self.__set_default_message()
+            tmp = {'result': {}}
+
+        elif isinstance(data, str) or issubclass(type(data), str):
+            data = self.__set_dynamic_message(data)
+            tmp = {'result': {'string': data} if data else {}}
+
+        elif isinstance(data, list):
+            if self.pagination:
+                tmp = {
+                    'count': len(data),
+                    'next': None,
+                    'previous': None,
+                    'result': data,
+                }
+            else:
+                tmp = {
+                    'result': data,
+                }
+
+        elif isinstance(data, dict):
+            if (
+                    'count' in data and
+                    'next' in data and
+                    'previous' in data and
+                    'results' in data
+            ):
+                if self.pagination:
+                    tmp = {
+                        'count': data.get('count'),
+                        'next': data.get('next'),
+                        'previous': data.get('previous'),
+                        'result': data.get('results'),
+                    }
+                else:
+                    tmp = {
+                        'result': data.get('results'),
+                    }
+            elif (
+                    'count' in data and
+                    'page_size' in data and
+                    'page_number' in data and
+                    'result' in data
+            ):
+                n, p = self.__get_pagination_url(
+                    page_size=data.get('page_size'),
+                    page_number=data.get('page_number'),
+                    count=data.get('count'))
+
+                if self.pagination:
+
+                    tmp = {
+                        'count': data.get('count'),
+                        'next': n,
+                        'previous': p,
+                        'result': data.get('result'),
+                    }
+                else:
+                    tmp = {
+                        'result': data.get('result'),
+                    }
+            else:
+                tmp = {'result': data}
+
+        else:
+            tmp = {'result': {}}
+
+        ret = tmp
+        return ret
+
+    @property
+    def get_request_path(self):
+        return f'{self.get_host()}{self.request._request.path}'
+
+    def __get_pagination_url(self, page_size, page_number, count):
+        first_page = int(bool(count))
+        cps = count / page_size
+        rcps = round(count / page_size)
+        last_page = cps if rcps == cps else rcps + 1
+
+        next_page_number = None if page_number >= last_page else page_number + 1
+        previous_page_number = None if page_number <= first_page and first_page else page_number - 1
+
+        next_page = f'{self.get_request_path}?page={next_page_number}' if next_page_number else None
+        previous_page = f'{self.get_request_path}?page={previous_page_number}' if previous_page_number else None
+
+        return next_page, previous_page
+
     @property
     def __debug_status(self):
         return SETTINGS.DEBUG
 
     @property
-    def __messages_response_displayed(self):
-        return SETTINGS.MESSAGES_RESPONSE_DISPLAYED
+    def __development_state(self):
+        return SETTINGS.DEVELOPMENT_STATE
+
+    def __development_messages_display(self):
+        if self.__development_state:
+            ret = self.request.headers.get('Development-Messages-Display', 'True') == 'True'
+        else:
+            ret = False
+        return ret
+
+    def __exception_status_display(self):
+        if self.__development_state:
+            ret = self.request.headers.get('Exception-Status-Display', 'True') == 'True'
+        else:
+            ret = False
+        return ret
 
     def response(self, output_data=None):
         data = output_data
@@ -500,10 +788,14 @@ class BaseAPI(APIView):
         return ret
 
     def convert_filename_to_url(self, file_name):
+        if file_name is None:
+            return None
         ret = f'{self.get_media_url()}{file_name}'
         return ret
 
     def convert_filename_to_url_localhost(self, file_name):
+        if file_name is None:
+            return None
         ret = f'{self.get_host()}{self.get_media_url()}{file_name}'
         return ret
 
@@ -559,82 +851,89 @@ class BaseAPI(APIView):
 
     def __default_messenger_message_adder(self):
         status_code = self.get_status_code()
-
+        try:
+            message = self.exc.detail if self.exc else None
+        except:
+            message = None
+        try:
+            code = self.exc.get_codes() if self.exc else None
+        except:
+            code = None
         if 100 <= status_code < 200:
             self.__add_to_messenger(
-                message=DefaultResponse100FailMessage.message,
-                code=DefaultResponse100FailMessage.code,
+                message=message or DefaultResponse100FailMessage.message,
+                code=code or DefaultResponse100FailMessage.code,
                 type_=DefaultResponse100FailMessage.type,
             )
 
         elif 200 <= status_code < 300:
             if status_code == 201:
                 self.__add_to_messenger(
-                    message=DefaultResponse201SuccessMessage.message,
-                    code=DefaultResponse201SuccessMessage.code,
+                    message=message or DefaultResponse201SuccessMessage.message,
+                    code=code or DefaultResponse201SuccessMessage.code,
                     type_=DefaultResponse201SuccessMessage.type,
                 )
             else:
                 self.__add_to_messenger(
-                    message=DefaultResponse200SuccessMessage.message,
-                    code=DefaultResponse200SuccessMessage.code,
+                    message=message or DefaultResponse200SuccessMessage.message,
+                    code=code or DefaultResponse200SuccessMessage.code,
                     type_=DefaultResponse200SuccessMessage.type,
                 )
 
         elif 300 <= status_code < 400:
             self.__add_to_messenger(
-                message=DefaultResponse300FailMessage.message,
-                code=DefaultResponse300FailMessage.code,
+                message=message or DefaultResponse300FailMessage.message,
+                code=code or DefaultResponse300FailMessage.code,
                 type_=DefaultResponse300FailMessage.type,
             )
 
         elif 400 <= status_code < 500:
             if status_code == 400:
                 self.__add_to_messenger(
-                    message=DefaultResponse400FailMessage.message,
-                    code=DefaultResponse400FailMessage.code,
+                    message=message or DefaultResponse400FailMessage.message,
+                    code=code or DefaultResponse400FailMessage.code,
                     type_=DefaultResponse400FailMessage.type,
                 )
 
             elif status_code == 401:
                 self.__add_to_messenger(
-                    message=DefaultResponse401FailMessage.message,
-                    code=DefaultResponse401FailMessage.code,
+                    message=message or DefaultResponse401FailMessage.message,
+                    code=code or DefaultResponse401FailMessage.code,
                     type_=DefaultResponse401FailMessage.type,
                 )
 
             elif status_code == 403:
                 self.__add_to_messenger(
-                    message=DefaultResponse403FailMessage.message,
-                    code=DefaultResponse403FailMessage.code,
+                    message=message or DefaultResponse403FailMessage.message,
+                    code=code or DefaultResponse403FailMessage.code,
                     type_=DefaultResponse403FailMessage.type,
                 )
 
             elif status_code == 404:
                 self.__add_to_messenger(
-                    message=DefaultResponse404FailMessage.message,
-                    code=DefaultResponse404FailMessage.code,
+                    message=message or DefaultResponse404FailMessage.message,
+                    code=code or DefaultResponse404FailMessage.code,
                     type_=DefaultResponse404FailMessage.type,
                 )
 
             elif status_code == 421:
                 self.__add_to_messenger(
-                    message=DefaultResponse421FailMessage.message,
-                    code=DefaultResponse421FailMessage.code,
+                    message=message or DefaultResponse421FailMessage.message,
+                    code=code or DefaultResponse421FailMessage.code,
                     type_=DefaultResponse421FailMessage.type,
                 )
 
             else:
                 self.__add_to_messenger(
-                    message=DefaultResponse400FailMessage.message,
-                    code=DefaultResponse400FailMessage.code,
+                    message=message or DefaultResponse400FailMessage.message,
+                    code=code or DefaultResponse400FailMessage.code,
                     type_=DefaultResponse400FailMessage.type,
                 )
 
         elif 500 <= status_code:
             self.__add_to_messenger(
-                message=DefaultResponse500FailMessage.message,
-                code=DefaultResponse500FailMessage.code,
+                message=message or DefaultResponse500FailMessage.message,
+                code=code or DefaultResponse500FailMessage.code,
                 type_=DefaultResponse500FailMessage.type,
             )
 
@@ -672,8 +971,8 @@ class BaseAPI(APIView):
             tmp = []
             for i in data:
                 rslt = self.__set_messages_from_data(i)
-                if rslt:
-                    tmp.append(rslt)
+                # if rslt:
+                tmp.append(rslt)
 
             ret = tmp
             return ret
@@ -682,8 +981,8 @@ class BaseAPI(APIView):
             tmp = {}
             for k, v in data.items():
                 rslt = self.__set_messages_from_data(v)
-                if rslt is not None:
-                    tmp[k] = v
+                # if rslt is not None:
+                tmp[k] = v
 
             ret = tmp
             return ret
@@ -732,22 +1031,132 @@ class BaseAPI(APIView):
         ret = self.__cookies_for_delete.append(key)
         return ret
 
+    @property
+    def get_query_params_fields(self):
+        fields = self.request.query_params.get('fields')
+        fields = fields if fields is None else fields.split(',')
+        return fields
+
 
 class CreateAPIView(BaseAPI, DRFGCreateAPIView):
-    pass
+    def create(self, request, *args, **kwargs):
+        if hasattr(self, 'check_validate_user') and self.check_validate_user:
+            user_lookup_field = 'id'
+            if hasattr(self, 'user_lookup_field'):
+                user_lookup_field = self.user_lookup_field
+            if not _valid_user(request=request, user_id=kwargs.get(user_lookup_field)):
+                return Response(status=403)
+
+        data = request.data.copy()
+        user_field_name = 'user'
+        if hasattr(self, 'user_field_name'):
+            user_field_name = self.user_field_name
+        data[user_field_name] = request.user.id
+
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
 class ListAPIView(BaseAPI, DRFGListAPIView):
-    pass
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if hasattr(self, 'for_user') and self.for_user:
+            qs = qs.filter(user_id=self.request.user.id)
+        return qs
+
+    def get(self, request, *args, **kwargs):
+        if hasattr(self, 'check_validate_user') and self.check_validate_user:
+            user_lookup_field = 'id'
+            if hasattr(self, 'user_lookup_field'):
+                user_lookup_field = self.user_lookup_field
+            if not _valid_user(request=request, user_id=kwargs.get(user_lookup_field)):
+                return Response(status=403)
+        return super().get(request, *args, **kwargs)
 
 
 class RetrieveAPIView(BaseAPI, DRFGRetrieveAPIView):
-    pass
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if hasattr(self, 'for_user') and self.for_user:
+            qs = qs.filter(user_id=self.request.user.id)
+        return qs
+
+    def get(self, request, *args, **kwargs):
+        if hasattr(self, 'check_validate_user') and self.check_validate_user:
+            user_lookup_field = 'id'
+            if hasattr(self, 'user_lookup_field'):
+                user_lookup_field = self.user_lookup_field
+            if not _valid_user(request=request, user_id=kwargs.get(user_lookup_field)):
+                return Response(status=403)
+        return super().get(request, *args, **kwargs)
 
 
 class UpdateAPIView(BaseAPI, DRFGUpdateAPIView):
-    pass
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if hasattr(self, 'for_user') and self.for_user:
+            qs = qs.filter(user_id=self.request.user.id)
+        return qs
+
+    def update(self, request, *args, **kwargs):
+        if hasattr(self, 'check_validate_user') and self.check_validate_user:
+            user_lookup_field = 'id'
+            if hasattr(self, 'user_lookup_field'):
+                user_lookup_field = self.user_lookup_field
+            if not _valid_user(request=request, user_id=kwargs.get(user_lookup_field)):
+                return Response(status=403)
+
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+
+        data = request.data.copy()
+        user_field_name = 'user'
+        if hasattr(self, 'user_field_name'):
+            user_field_name = self.user_field_name
+        data[user_field_name] = request.user.id
+
+        serializer = self.get_serializer(instance, data=data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        if getattr(instance, '_prefetched_objects_cache', None):
+            # If 'prefetch_related' has been applied to a queryset, we need to
+            # forcibly invalidate the prefetch cache on the instance.
+            instance._prefetched_objects_cache = {}
+
+        return Response(serializer.data)
 
 
 class DestroyAPIView(BaseAPI, DRFGDestroyAPIView):
-    pass
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if hasattr(self, 'for_user') and self.for_user:
+            qs = qs.filter(user_id=self.request.user.id)
+        return qs
+
+    def delete(self, request, *args, **kwargs):
+        if hasattr(self, 'check_validate_user') and self.check_validate_user:
+            user_lookup_field = 'id'
+            if hasattr(self, 'user_lookup_field'):
+                user_lookup_field = self.user_lookup_field
+            if not _valid_user(request=request, user_id=kwargs.get(user_lookup_field)):
+                return Response(status=403)
+        return self.destroy(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance=instance, soft_delete=kwargs.get('soft_delete', False))
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def perform_destroy(self, instance, soft_delete=False):
+        if instance is None:
+            return
+
+        if soft_delete:
+            instance.available = 0
+            instance.save()
+        else:
+            instance.delete()
