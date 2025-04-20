@@ -72,12 +72,15 @@ class BaseModelAdmin(admin.ModelAdmin):
             if hasattr(self, 'updated_dt_field_in_display_list') else False)
 
         tmp = ['available'] if 'available' not in value and available_field_in_display_list else []
-        tmp += ['id'] if 'id' not in value and id_field_in_display_list else []
+        tmp += ['id_'] if 'id' not in value and id_field_in_display_list else []
         tmp += value
         tmp += ['created_dt'] if 'created_dt' not in value and created_dt_field_in_display_list else []
         tmp += ['updated_dt'] if 'updated_dt' not in value and updated_dt_field_in_display_list else []
 
         self._list_display = tmp
+
+    def id_(self, obj):
+        return str(obj.id)[:]
 
     _list_display_links = []
 
@@ -89,24 +92,24 @@ class BaseModelAdmin(admin.ModelAdmin):
     def list_display_links(self, value):
         value = list(value)
 
-        available_field_in_display_list = (
-            self.available_field_in_display_list
-            if hasattr(self, 'available_field_in_display_list') else False)
-        id_field_in_display_list = (
-            self.id_field_in_display_list
-            if hasattr(self, 'id_field_in_display_list') else False)
-        created_dt_field_in_display_list = (
-            self.created_dt_field_in_display_list
-            if hasattr(self, 'created_dt_field_in_display_list') else False)
-        updated_dt_field_in_display_list = (
-            self.updated_dt_field_in_display_list
-            if hasattr(self, 'updated_dt_field_in_display_list') else False)
+        # available_field_in_display_list = (
+        #     self.available_field_in_display_list
+        #     if hasattr(self, 'available_field_in_display_list') else False)
+        # id_field_in_display_list = (
+        #     self.id_field_in_display_list
+        #     if hasattr(self, 'id_field_in_display_list') else False)
+        # created_dt_field_in_display_list = (
+        #     self.created_dt_field_in_display_list
+        #     if hasattr(self, 'created_dt_field_in_display_list') else False)
+        # updated_dt_field_in_display_list = (
+        #     self.updated_dt_field_in_display_list
+        #     if hasattr(self, 'updated_dt_field_in_display_list') else False)
 
-        tmp = ['available'] if 'available' not in value and available_field_in_display_list else []
-        tmp += ['id'] if 'id' not in value and id_field_in_display_list else []
-        tmp += value
-        tmp += ['created_dt'] if 'created_dt' not in value and created_dt_field_in_display_list else []
-        tmp += ['updated_dt'] if 'updated_dt' not in value and updated_dt_field_in_display_list else []
+        # tmp = ['available'] if 'available' not in value and available_field_in_display_list else []
+        # tmp = ['id'] if 'id' not in value and id_field_in_display_list else []
+        tmp = value
+        # tmp += ['created_dt'] if 'created_dt' not in value and created_dt_field_in_display_list else []
+        # tmp += ['updated_dt'] if 'updated_dt' not in value and updated_dt_field_in_display_list else []
 
         self._list_display_links = tmp
 
