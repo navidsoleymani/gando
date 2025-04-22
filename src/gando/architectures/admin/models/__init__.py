@@ -19,6 +19,9 @@ def verbose_name(value: str):
 
 
 class BaseModelAdmin(admin.ModelAdmin):
+    list_per_page = 10
+    save_as = False
+    save_on_top = False
 
     def __init__(self, *args, **kwargs):
         # Display Management
