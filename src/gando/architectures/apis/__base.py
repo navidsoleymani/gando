@@ -1,3 +1,4 @@
+import contextlib
 import importlib
 from inspect import currentframe, getframeinfo
 from typing import Any
@@ -428,12 +429,68 @@ class BaseAPI(APIView):
         ret = tmp
         return ret
 
+    def __messenger_code_parser(self, x):
+        if isinstance(x, int) or isinstance(x, str):
+            return x
+
+        with contextlib.suppress(Exception):
+            return x.code
+
+        with contextlib.suppress(Exception):
+            return x.get('code')
+
+        with contextlib.suppress(Exception):
+            return '-1'
+
+    def __messenger_message_parser(self, x):
+        if isinstance(x, str):
+            return x
+
+        with contextlib.suppress(Exception):
+            return x.detail
+
+        with contextlib.suppress(Exception):
+            return x.details[0]
+
+        with contextlib.suppress(Exception):
+            return x.details
+
+        with contextlib.suppress(Exception):
+            return x.messages[0]
+
+        with contextlib.suppress(Exception):
+            return x.messages
+
+        with contextlib.suppress(Exception):
+            return x.message
+
+        with contextlib.suppress(Exception):
+            return x.get('detail')
+
+        with contextlib.suppress(Exception):
+            return x.get('details')[0]
+
+        with contextlib.suppress(Exception):
+            return x.get('details')
+
+        with contextlib.suppress(Exception):
+            return x.get('messages')[0]
+
+        with contextlib.suppress(Exception):
+            return x.get('messages')
+
+        with contextlib.suppress(Exception):
+            return x.get('message')
+
+        with contextlib.suppress(Exception):
+            return 'Unknown problem. Please report to support.'
+
     def __add_to_messenger(self, message, code, type_):
         self.__messenger.append(
             {
                 'type': type_,
-                'code': code,
-                'message': message,
+                'code': self.__messenger_code_parser(code),
+                'message': self.__messenger_message_parser(message),
             }
         )
 
