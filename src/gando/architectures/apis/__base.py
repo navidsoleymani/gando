@@ -929,6 +929,11 @@ class BaseAPI(APIView):
 
     # ------------------------------ Security helpers ------------------------ #
 
+
+# --------------------------------------------------------------------------- #
+# Concrete Views
+# --------------------------------------------------------------------------- #
+class GenericAPIView(DRFGAPIView, BaseAPI):
     def get_check_validate_user(self) -> bool:
         return getattr(self, "check_validate_user", False)
 
@@ -962,13 +967,38 @@ class BaseAPI(APIView):
 
     def dispatch(self, request, *args, **kwargs):
         """
-        Apply security check and user-id injection for write methods, then dispatch.
+        `.dispatch()` is pretty much the same as Django's regular dispatch,
+        but with extra hooks for startup, finalize, and exception handling.
         """
-        self._checking_validate_user(request, *args, **kwargs)
-        method = request.method.lower()
-        if method in ("post", "put", "patch"):
-            self.adding_user_id_to_request_data()
-        return super().dispatch(request, *args, **kwargs)
+        self.args = args
+        self.kwargs = kwargs
+        request = self.initialize_request(request, *args, **kwargs)
+        self.request = request
+        self.headers = self.default_response_headers  # deprecate?
+
+        try:
+            self.initial(request, *args, **kwargs)
+
+            method = request.method.lower()
+            # Get the appropriate handler method
+            if method in self.http_method_names:
+                handler = getattr(
+                    self, request.method.lower(),
+                    self.http_method_not_allowed)
+            else:
+                handler = self.http_method_not_allowed
+
+            self._checking_validate_user(request, *args, **kwargs)
+            if method in ("post", "put", "patch"):
+                self.adding_user_id_to_request_data()
+
+            response = handler(request, *args, **kwargs)
+
+        except Exception as exc:
+            response = self.handle_exception(exc)
+
+        self.response = self.finalize_response(request, response, *args, **kwargs)
+        return self.response
 
     def get_for_user(self) -> bool:
         return getattr(self, "for_user", False)
@@ -984,13 +1014,6 @@ class BaseAPI(APIView):
         return queryset
 
     lookup_field = 'pk'
-
-
-# --------------------------------------------------------------------------- #
-# Concrete Views
-# --------------------------------------------------------------------------- #
-class GenericAPIView(DRFGAPIView, BaseAPI):
-    pass
 
 
 class CreateAPIView(GenericAPIView, DRFGCreateAPIView):
