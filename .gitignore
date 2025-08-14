@@ -309,3 +309,4 @@ mediafiles/
 /jet_bridge_store.sqlite3
 nvd.py
 /requirements.txt
+/pypi.command
