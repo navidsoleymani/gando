@@ -114,7 +114,7 @@ def set_rollback() -> None:
 # Base API
 # --------------------------------------------------------------------------- #
 
-class BaseAPI(APIView, DRFGAPIView):
+class BaseAPI(APIView):
     """
     Opinionated DRF API base class that:
       - shapes responses to a consistent schema (1.0.0/2.0.0),
@@ -983,32 +983,37 @@ class BaseAPI(APIView, DRFGAPIView):
             return queryset.filter(**{self.get_user_field_name_id(): getattr(self.request.user, "id", None)})
         return queryset
 
+    lookup_field = 'pk'
+
 
 # --------------------------------------------------------------------------- #
 # Concrete Views
 # --------------------------------------------------------------------------- #
+class GenericAPIView(DRFGAPIView, BaseAPI):
+    pass
 
-class CreateAPIView(BaseAPI, DRFGCreateAPIView):
+
+class CreateAPIView(GenericAPIView, DRFGCreateAPIView):
     """Create-only endpoint with BaseAPI facilities."""
     pass
 
 
-class ListAPIView(BaseAPI, DRFGListAPIView):
+class ListAPIView(GenericAPIView, DRFGListAPIView):
     """List-only endpoint with BaseAPI facilities."""
     pass
 
 
-class RetrieveAPIView(BaseAPI, DRFGRetrieveAPIView):
+class RetrieveAPIView(GenericAPIView, DRFGRetrieveAPIView):
     """Retrieve-only endpoint with BaseAPI facilities."""
     pass
 
 
-class UpdateAPIView(BaseAPI, DRFGUpdateAPIView):
+class UpdateAPIView(GenericAPIView, DRFGUpdateAPIView):
     """Update-only endpoint with BaseAPI facilities."""
     pass
 
 
-class DestroyAPIView(BaseAPI, DRFGDestroyAPIView):
+class DestroyAPIView(GenericAPIView, DRFGDestroyAPIView):
     """
     Destroy endpoint with optional soft-delete behavior.
     To enable soft delete, set either view attr `soft_delete=True` or pass kwarg `soft_delete=True`.
