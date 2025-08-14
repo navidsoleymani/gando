@@ -11,6 +11,7 @@ from rest_framework import exceptions
 from rest_framework import status
 from rest_framework.exceptions import ErrorDetail
 from rest_framework.generics import (
+    GenericAPIView as DRFGAPIView,
     CreateAPIView as DRFGCreateAPIView,
     ListAPIView as DRFGListAPIView,
     RetrieveAPIView as DRFGRetrieveAPIView,
@@ -55,6 +56,7 @@ from gando.utils.messages import (
     DefaultResponse421FailMessage,
     DefaultResponse500FailMessage,
 )
+from gando.utils.http.request import request_updater
 
 
 def _valid_user(user_id, request):
@@ -76,7 +78,7 @@ def set_rollback():
             db.set_rollback(True)
 
 
-class BaseAPI(APIView):
+class BaseAPI(APIView, DRFGAPIView):
     pagination = True
 
     def __init__(self, **kwargs):
@@ -569,11 +571,11 @@ class BaseAPI(APIView):
         if isinstance(self.__data, list):
             return True
         if (
-                isinstance(self.__data, dict) and
-                'count' in self.__data and
-                'next' in self.__data and
-                'previous' in self.__data and
-                'results' in self.__data
+            isinstance(self.__data, dict) and
+            'count' in self.__data and
+            'next' in self.__data and
+            'previous' in self.__data and
+            'results' in self.__data
         ):
             return True
         return False
@@ -582,11 +584,11 @@ class BaseAPI(APIView):
         if isinstance(self.__data, list):
             return True
         if (
-                isinstance(self.__data, dict) and
-                'count' in self.__data and
-                'next' in self.__data and
-                'previous' in self.__data and
-                'result' in self.__data
+            isinstance(self.__data, dict) and
+            'count' in self.__data and
+            'next' in self.__data and
+            'previous' in self.__data and
+            'result' in self.__data
         ):
             return True
         return False
@@ -607,10 +609,10 @@ class BaseAPI(APIView):
         if 200 <= self.get_status_code() < 300:
             return True
         if (
-                len(self.__errors_message) == 0 and
-                len(self.__exceptions_message) == 0 and
-                not self.__exception_status and
-                not self.__fail_message_messenger()
+            len(self.__errors_message) == 0 and
+            len(self.__exceptions_message) == 0 and
+            not self.__exception_status and
+            not self.__fail_message_messenger()
         ):
             return True
         return False
@@ -732,10 +734,10 @@ class BaseAPI(APIView):
 
         elif isinstance(data, dict):
             if (
-                    'count' in data and
-                    'next' in data and
-                    'previous' in data and
-                    'results' in data
+                'count' in data and
+                'next' in data and
+                'previous' in data and
+                'results' in data
             ):
                 if self.pagination:
                     tmp = {
@@ -749,10 +751,10 @@ class BaseAPI(APIView):
                         'result': data.get('results'),
                     }
             elif (
-                    'count' in data and
-                    'page_size' in data and
-                    'page_number' in data and
-                    'result' in data
+                'count' in data and
+                'page_size' in data and
+                'page_number' in data and
+                'result' in data
             ):
                 n, p = self.__get_pagination_url(
                     page_size=data.get('page_size'),
@@ -1094,118 +1096,81 @@ class BaseAPI(APIView):
         fields = fields if fields is None else fields.split(',')
         return fields
 
+    def get_check_validate_user(self) -> bool:
+        return self.check_validate_user if hasattr(self, 'check_validate_user') else False
+
+    def get_user_lookup_field(self) -> str:
+        return self.user_lookup_field if hasattr(self, 'user_lookup_field') else 'id'
+
+    def _checking_validate_user(self, request, *args, **kwargs):
+        if self.get_check_validate_user():
+            user_lookup_field = self.get_user_lookup_field()
+            if not _valid_user(request=request, user_id=kwargs.get(user_lookup_field)):
+                raise PermissionDenied
+
+    def get_user_field_name(self) -> str:
+        return self.user_field_name if hasattr(self, 'user_field_name') else 'user'
+
+    def get_add_user_id_to_request_data(self) -> str:
+        return self.add_user_id_to_request_data if hasattr(self, 'add_user_id_to_request_data') else True
+
+    def adding_user_id_to_request_data(self):
+        params = {self.get_user_field_name: (
+            self.request.user.id if hasattr(self.request, 'user') and hasattr(self.request.user, 'id') else None)}
+        if self.get_add_user_id_to_request_data():
+            self.request = request_updater(self.request, **params)
+
+    def dispatch(self, request, *args, **kwargs):
+        self._checking_validate_user(request, *args, **kwargs)
+        method = self.request.method.lower()
+        if method in ('post', 'put', 'patch',):
+            self.adding_user_id_to_request_data()
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_for_user(self) -> bool:
+        return self.for_user if hasattr(self, 'for_user') else False
+
+    def get_user_field_name_id(self) -> str:
+        return (
+            self.user_field_name_id
+            if hasattr(self, 'user_field_name_id')
+            else (
+                self.get_user_field_name()
+                if 'id' in self.get_user_field_name()
+                else f'{self.get_user_field_name()}_id'))
+
+    def get_queryset(self):
+        return (
+            super().get_queryset().filter(**{self.get_user_field_name_id(): self.request.user.id})
+            if self.get_for_user()
+            else super().get_queryset())
+
 
 class CreateAPIView(BaseAPI, DRFGCreateAPIView):
-    def create(self, request, *args, **kwargs):
-        if hasattr(self, 'check_validate_user') and self.check_validate_user:
-            user_lookup_field = 'id'
-            if hasattr(self, 'user_lookup_field'):
-                user_lookup_field = self.user_lookup_field
-            if not _valid_user(request=request, user_id=kwargs.get(user_lookup_field)):
-                return Response(status=403)
-
-        data = request.data.copy()
-        user_field_name = 'user'
-        if hasattr(self, 'user_field_name'):
-            user_field_name = self.user_field_name
-        data[user_field_name] = request.user.id
-
-        serializer = self.get_serializer(data=data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+    pass
 
 
 class ListAPIView(BaseAPI, DRFGListAPIView):
-    def get_queryset(self):
-        qs = super().get_queryset()
-        if hasattr(self, 'for_user') and self.for_user:
-            qs = qs.filter(user_id=self.request.user.id)
-        return qs
-
-    def get(self, request, *args, **kwargs):
-        if hasattr(self, 'check_validate_user') and self.check_validate_user:
-            user_lookup_field = 'id'
-            if hasattr(self, 'user_lookup_field'):
-                user_lookup_field = self.user_lookup_field
-            if not _valid_user(request=request, user_id=kwargs.get(user_lookup_field)):
-                return Response(status=403)
-        return super().get(request, *args, **kwargs)
+    pass
 
 
 class RetrieveAPIView(BaseAPI, DRFGRetrieveAPIView):
-    def get_queryset(self):
-        qs = super().get_queryset()
-        if hasattr(self, 'for_user') and self.for_user:
-            qs = qs.filter(user_id=self.request.user.id)
-        return qs
-
-    def get(self, request, *args, **kwargs):
-        if hasattr(self, 'check_validate_user') and self.check_validate_user:
-            user_lookup_field = 'id'
-            if hasattr(self, 'user_lookup_field'):
-                user_lookup_field = self.user_lookup_field
-            if not _valid_user(request=request, user_id=kwargs.get(user_lookup_field)):
-                return Response(status=403)
-        return super().get(request, *args, **kwargs)
+    pass
 
 
 class UpdateAPIView(BaseAPI, DRFGUpdateAPIView):
-    def get_queryset(self):
-        qs = super().get_queryset()
-        if hasattr(self, 'for_user') and self.for_user:
-            qs = qs.filter(user_id=self.request.user.id)
-        return qs
-
-    def update(self, request, *args, **kwargs):
-        if hasattr(self, 'check_validate_user') and self.check_validate_user:
-            user_lookup_field = 'id'
-            if hasattr(self, 'user_lookup_field'):
-                user_lookup_field = self.user_lookup_field
-            if not _valid_user(request=request, user_id=kwargs.get(user_lookup_field)):
-                return Response(status=403)
-
-        partial = kwargs.pop('partial', False)
-        instance = self.get_object()
-
-        data = request.data.copy()
-        user_field_name = 'user'
-        if hasattr(self, 'user_field_name'):
-            user_field_name = self.user_field_name
-        data[user_field_name] = request.user.id
-
-        serializer = self.get_serializer(instance, data=data, partial=partial)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-
-        if getattr(instance, '_prefetched_objects_cache', None):
-            # If 'prefetch_related' has been applied to a queryset, we need to
-            # forcibly invalidate the prefetch cache on the instance.
-            instance._prefetched_objects_cache = {}
-
-        return Response(serializer.data)
+    pass
 
 
 class DestroyAPIView(BaseAPI, DRFGDestroyAPIView):
-    def get_queryset(self):
-        qs = super().get_queryset()
-        if hasattr(self, 'for_user') and self.for_user:
-            qs = qs.filter(user_id=self.request.user.id)
-        return qs
-
-    def delete(self, request, *args, **kwargs):
-        if hasattr(self, 'check_validate_user') and self.check_validate_user:
-            user_lookup_field = 'id'
-            if hasattr(self, 'user_lookup_field'):
-                user_lookup_field = self.user_lookup_field
-            if not _valid_user(request=request, user_id=kwargs.get(user_lookup_field)):
-                return Response(status=403)
-        return self.destroy(request, *args, **kwargs)
+    def get_soft_delete(self, soft_delete=None, **kwargs):
+        if soft_delete is None:
+            return self.soft_delete if hasattr(self, 'soft_delete') else False
+        return soft_delete
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        self.perform_destroy(instance=instance, soft_delete=kwargs.get('soft_delete', False))
+        self.perform_destroy(instance=instance, soft_delete=self.get_soft_delete(**kwargs))
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def perform_destroy(self, instance, soft_delete=False):
