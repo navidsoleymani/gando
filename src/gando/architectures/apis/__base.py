@@ -1273,7 +1273,6 @@ class BaseAPI(APIView):
         message = None
         with contextlib.suppress(Exception):
             message = self.exc.detail if self.exc else None  # type: ignore[attr-defined]
-
         self.__auto_default_messenger_message_adder(status_code, message)
 
     def __auto_default_messenger_message_adder(self, status_code, message, prefix_code=''):
@@ -1283,10 +1282,12 @@ class BaseAPI(APIView):
         elif isinstance(message, dict):
             for k, v in message.items():
                 self.__auto_default_messenger_message_adder(status_code, v, f'{k}__')
+        elif message is None:
+            self.__default_messenger_message_adder_detector(status_code, message)
         else:
             self.__default_messenger_message_adder_detector(status_code, message, f'{prefix_code}{message.code}')
 
-    def __default_messenger_message_adder_detector(self, status_code, message, code):
+    def __default_messenger_message_adder_detector(self, status_code, message, code=None):
         if 100 <= status_code < 200:
             self.__add_to_messenger(
                 message=message or DefaultResponse100FailMessage.message,
