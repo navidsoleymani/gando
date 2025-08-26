@@ -2,7 +2,8 @@
 
 [![PyPI](https://img.shields.io/pypi/v/gando?label=PyPI\&logo=python)](https://pypi.org/project/gando) <!-- placeholder -->
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-![gando](statics/imgs/gando.svg)
+![Gando Logo](https://raw.githubusercontent.com/navidsoleymani/gando/main/assets/gando.svg)
+
 
 **Gando** is a collection of batteries-included tools, conventions and scaffolding utilities built on top of Django to standardize and accelerate development for the Horin engineering teams.
 Named after *Gando* — a small, native crocodile of Sistan and Baluchestan — the project is compact, tough and purpose-built for the local needs of your org.
