@@ -1,68 +1,88 @@
-# Gando — Django toolkit & conventions for Horin Software Group
+# Gando — a batteries-included Django toolkit
 
-[![PyPI](https://img.shields.io/pypi/v/gando?label=PyPI\&logo=python)](https://pypi.org/project/gando) <!-- placeholder -->
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![PyPI version](https://img.shields.io/pypi/v/gando.svg?logo=pypi&logoColor=white)](https://pypi.org/project/gando/)
+[![Python versions](https://img.shields.io/pypi/pyversions/gando.svg?logo=python&logoColor=white)](https://pypi.org/project/gando/)
+[![Django](https://img.shields.io/badge/Django-4.2%20%7C%205.x-092E20.svg?logo=django&logoColor=white)](https://www.djangoproject.com/)
+[![License: MIT](https://img.shields.io/pypi/l/gando.svg)](./LICENSE)
+
+**Gando** gives Django/DRF projects a consistent spine: soft-delete abstract
+models, opinionated admin, typed model fields (images, phone, username,
+password), a single standardized API response envelope, request/client helpers,
+and management commands that scaffold a clean service-layer app in seconds.
+It exists so that every project in an engineering org speaks the same
+error/response shape and the same folder conventions — less copy/paste, faster
+onboarding, fewer bespoke wrappers to maintain.
+
+Named after the *Gando* — a small, tough crocodile native to Sistan and
+Baluchestan in Iran: compact and purpose-built.
+
 ![Gando Logo](./assets/gando-banner-for-md-readme.png)
 
-**Gando** is a collection of batteries-included tools, conventions and scaffolding utilities built on top of Django to
-standardize and accelerate development for the Horin engineering teams.
-Named after *Gando* — a small, native crocodile of Sistan and Baluchestan — the project is compact, tough and
-purpose-built for the local needs of your org.
+---
+
+## Status
+
+Gando is a real, actively maintained toolkit built by **Horin Software Group**,
+extracted from production Django services and published for reuse. It is used in
+production today. Releases follow [Semantic Versioning](https://semver.org/) and
+every change is recorded in [`CHANGELOG.md`](./CHANGELOG.md). The `2.3.0` release
+was a hardening pass (bug fixes, a first test suite, corrected packaging
+metadata) — see [Design notes & recent hardening](#design-notes--recent-hardening-230).
 
 ---
 
-## Quick summary
-
-* **What it is:** A small framework of opinionated building blocks for Django projects: base abstract models, useful
-  model fields (image + validators), admin base classes, API response/exception schemas, request helpers, scaffolding
-  management commands (`startmodel`, `startapi`, `startservice`, `startinterface`, ...), and utilities (image
-  converters/uploaders, string casings, etc).
-* **Why:** Aligns Horin internal projects around shared error/response shapes, admin patterns, and developer
-  ergonomics—reduces copy/paste and onboarding time.
-* **Status:** Actively developed and extended; features are added on demand.
-
----
-
-# Table of contents
+## Table of contents
 
 1. [Key features](#key-features)
 2. [Install](#install)
-3. [Quickstart (5–10 min)](#quickstart-5-10-min)
+3. [Quickstart (5 minutes)](#quickstart-5-minutes)
 4. [Core concepts & architecture](#core-concepts--architecture)
-5. [Examples (models, admin, API flow)](#examples-models-admin-api-flow)
+5. [Examples: model → admin → API → response](#examples-model--admin--api--response)
 6. [Management commands / scaffolding](#management-commands--scaffolding)
 7. [Response & request contract](#response--request-contract)
-8. [Important notes, gotchas & recommended fixes](#important-notes-gotchas--recommended-fixes)
-9. [Development, tests & CI](#development-tests--ci)
-10. [Roadmap & contributing](#roadmap--contributing)
+8. [Design notes & recent hardening (2.3.0)](#design-notes--recent-hardening-230)
+9. [Development & tests](#development--tests)
+10. [Contributing](#contributing)
 11. [License & contact](#license--contact)
 
 ---
 
 ## Key features
 
-* Opinionated base models: `AbstractBaseModel`, `WhiteAbstractBaseModel`, `AbstractBaseModelFaster` (history-enabled,
-  timestamps, availability flag).
-* `AvailableManager` (named `Manager` in current code) that filters `available=1` by default.
-* Rich image support: `ImageField` (multi-subfields), `ImageProperty` descriptor, `BlurBase64Field` computed preview.
-* Validators & typed model fields: `PhoneNumberField`, `UsernameField`, `PasswordField`, `BooleanNumberField`.
-* `BaseModelAdmin` — unified Admin list/filters/readonly behavior and image field rendering.
-* API scaffolding: `ResponseSchema`, `RequestSchema`, `Base` / `BaseInterface` for method dispatch and unified response
-  format.
-* Scaffolding commands to create repositories, schemas, APIs, interfaces, services and models automatically following
-  the gando conventions.
-* Utilities: string casings, image converter (small blur base64), uploaders, and request/response helpers.
+* **Soft-delete abstract models.** `AbstractBaseModel` combines timestamps,
+  a `simple_history` audit trail, an `available` flag and an `is_deleted`
+  soft-delete marker. Its default manager (`AbstractBaseModelManager`)
+  transparently filters out deleted/unavailable rows (`is_deleted=False,
+  available=1`), so ordinary queries never see soft-deleted records.
+* **Rich, typed model fields** (`gando.models.fields`): a composite `ImageField`
+  (with an `ImageProperty` descriptor), a computed `BlurBase64Field` low-res
+  preview, plus validated `PhoneNumberField`, `UsernameField`, `PasswordField`
+  and `BooleanNumberField`.
+* **Opinionated admin.** `BaseModelAdmin` gives every model consistent list,
+  filter, search and readonly behavior — including automatic `id` / `available`
+  / created / updated columns — out of the box.
+* **One API response envelope.** `BaseAPI` (a DRF `APIView`) wraps every
+  response — success or exception — into a single, predictable JSON shape, so
+  clients write their parsing and error handling exactly once.
+* **Service-layer building blocks.** `BaseService` and its specialized
+  variants (`BaseCreatorService`, `BaseGetterService`, `BaseUpdaterService`,
+  `BaseGetterCreatorService`, `BaseDataBaseManagerService`) plus
+  `BaseInterface` structure business logic away from views.
+* **Scaffolding commands.** `startmodel`, `startapi`, `startservice`,
+  `startinterface` generate the conventional `repo/` package layout so new
+  features start consistent.
+* **Utilities.** String casing helpers, an image blur-preview converter,
+  uploaders, and request/response helpers.
 
 ---
 
 ## Install
 
 ```bash
-# (recommended: inside virtualenv)
 pip install gando
 ```
 
-or for local editable development:
+For local, editable development:
 
 ```bash
 git clone https://github.com/navidsoleymani/gando.git
@@ -70,72 +90,80 @@ cd gando
 pip install -e .
 ```
 
-Minimum safe `setup.py`/`pyproject` expectations:
+**Requirements** (declared in `setup.py`):
 
-* `python_requires='>=3.8'`
-* Pin runtime dependencies more conservatively in the future, e.g. `Django>=4.2,<5.0`, `djangorestframework>=3.12`.
+* `python_requires='>=3.10'` — the codebase uses PEP 604 (`X | Y`) unions at
+  runtime, so 3.10 is the true minimum.
+* Runtime dependencies (conservative lower bounds, no upper caps):
+  `Django>=4.2`, `djangorestframework>=3.14`, `pydantic>=2.0`, `Pillow>=9.0`,
+  `django-simple-history>=3.3`, `django-filter>=23.0`, `markdown>=3.4`,
+  `httpx>=0.24`. `pydantic>=2` is a hard requirement — gando calls the v2-only
+  `model_dump()` API.
 
 ---
 
-## Quickstart (minimal)
+## Quickstart (5 minutes)
 
-1. **Add to `INSTALLED_APPS`** in `settings.py`:
+**1. Add gando to `INSTALLED_APPS`** in `settings.py`:
 
 ```py
 INSTALLED_APPS = [
-  # ...
-  "gando",
-  # other apps
+    # ...
+    "simple_history",   # gando's audit trail depends on it
+    "gando",
+    # your apps
 ]
 ```
 
-2. **Use an abstract model**:
+**2. Define a model** on top of the soft-delete base:
 
 ```py
-from gando.models import AbstractBaseModel  # path may vary
+from django.db import models
+from gando.models import AbstractBaseModel
 
 
 class Article(AbstractBaseModel):
-  title = models.CharField(max_length=300)
-  body = models.TextField()
+    title = models.CharField(max_length=300)
+    body = models.TextField()
+
+    def __str__(self):
+        return self.title
 ```
 
-3. **Use the ImageField helper**:
+`Article.objects.all()` now returns only rows where `is_deleted=False` and
+`available=1`, and every write is recorded in the history table automatically.
+
+**3. Add typed fields** where you need them:
 
 ```py
-from gando.models import AbstractBaseModel, ImageField
+from django.db import models
+from gando.models import AbstractBaseModel
+from gando.models.fields import ImageField, PhoneNumberField
 
 
-class Product(AbstractBaseModel):
-  image = ImageField()
-  title = models.CharField(max_length=255)
+class Profile(AbstractBaseModel):
+    # ImageField is a composite field: it also creates companion columns such
+    # as `avatar_src` and an auto-computed blurred base64 preview
+    # (`avatar_blurbase64`) — no extra wiring needed.
+    avatar = ImageField()
+    phone = PhoneNumberField()
+    display_name = models.CharField(max_length=255)
 ```
 
-4. **Admin** — reuse the standard admin scaffold:
+**4. Register the model** with the standard admin:
 
 ```py
 from django.contrib import admin
-from gando.admin import BaseModelAdmin
-from .models import Product
+from gando.admin.models import BaseModelAdmin
+from .models import Profile
 
 
-@admin.register(Product)
-class ProductAdmin(BaseModelAdmin):
-  list_display = ['title', 'image']
+@admin.register(Profile)
+class ProfileAdmin(BaseModelAdmin):
+    list_display = ["display_name", "phone"]
 ```
 
-5. **Create scaffolds** (from project root):
-
-```bash
-python manage.py startmodel -al your_app_label -mn Product
-python manage.py startapi   -al your_app_label -an Product
-python manage.py startservice -al your_app_label -sn Product
-python manage.py startinterface -al your_app_label -in Product
-```
-
-(The flags are: `-al/--applabel`, `-mn/--modelname`, `-an/--apiname`, `-sn/--servicename`, `-in/--interfacename`.)
-
-6. **Migrate** and run:
+**5. Migrate and run:**
 
 ```bash
 python manage.py makemigrations
@@ -143,321 +171,234 @@ python manage.py migrate
 python manage.py runserver
 ```
 
+That's a working, audited, soft-deleting model with a consistent admin — in
+five steps.
+
 ---
 
 ## Core concepts & architecture
 
-**Design philosophies** (applies across gando):
+Gando is built around a few deliberate ideas:
 
-* **Conventions over configuration** — provide sane defaults (timestamps, availability, admin lists) so teams are
-  consistent.
-* **Separation of concerns** — `architectures` contains `apis`, `interfaces`, `services`, `models` and `serializers` and
-  enforces a flow: `API / Interface -> Service -> Repo/Models -> Serializers -> Response`.
-* **Unified contracts** — server and client share `RequestSchema` / `ResponseSchema` shapes to avoid divergence.
-* **Scaffold-first** — management commands create consistent package/module layout (`repo`, `schemas`, `apis`,
-  `services`).
+* **Conventions over configuration.** Sane defaults (timestamps, availability,
+  soft delete, admin columns, response shape) mean teams stay consistent
+  without wiring the same plumbing on every project.
+* **Separation of concerns.** Views stay thin; business logic lives in
+  services. The conventional flow is:
+  `API (BaseAPI) → Interface/Service → Models → Schemas → standardized Response`.
+* **One contract, everywhere.** A single response envelope (`BaseAPI`) and
+  request/response schemas keep server and client from drifting apart.
+* **Scaffold-first.** Management commands generate a consistent `repo/` package
+  layout (`admin/`, `models/`, `schemas/`, `services/`, `interfaces/`,
+  `apis/`, `urls/`) so new features start life in the right shape.
 
-**Typical request flow**:
+**Import map** (flat, `2.x` layout):
 
-1. HTTP request arrives at an API view (generated by scaffolding).
-2. Request parsed into `RequestSchema`.
-3. `BaseInterface` or `Base` dispatches to a method (`get`, `post`, etc).
-4. Interface calls a `Service` that encapsulates business logic.
-5. `Service` interacts with `repo` models and returns domain `data`.
-6. Response wrapped by `ResponseSchema` and returned.
+| Import | What you get |
+| --- | --- |
+| `from gando.models import AbstractBaseModel` | soft-delete abstract base model |
+| `from gando.models.fields import ImageField, BlurBase64Field, PhoneNumberField, UsernameField, PasswordField, BooleanNumberField` | typed model fields & validators |
+| `from gando.admin.models import BaseModelAdmin` | opinionated `ModelAdmin` base |
+| `from gando.apis import BaseAPI, ListAPIView, RetrieveAPIView, CreateAPIView, UpdateAPIView, DestroyAPIView` | DRF views with the standard envelope |
+| `from gando.services import BaseService, BaseCreatorService, BaseGetterService, BaseUpdaterService, BaseGetterCreatorService, BaseDataBaseManagerService` | service-layer bases |
+| `from gando.interfaces import BaseInterface` | interface base |
+| `from gando.schemas import AbstractBaseSchema, AbstractBaseSchemaModel` | pydantic schema bases |
 
 ---
 
-## Examples — Model → Service → API → Response
+## Examples: model → admin → API → response
 
-**Model**:
+**Model** — an audited, soft-deleting banner:
 
 ```py
-from gando.models import AbstractBaseModel, ImageField
+from django.db import models
+from gando.models import AbstractBaseModel
+from gando.models.fields import ImageField
 
 
 class Banner(AbstractBaseModel):
-  title = models.CharField(max_length=200)
-  image = ImageField()
+    title = models.CharField(max_length=200)
+    image = ImageField()
 ```
 
-**Service (conceptual)**:
+**Service** — keep query/business logic out of the view:
 
 ```py
-from gando.architectures.services import BaseService
+from gando.services import BaseService
+from .models import Banner
 
 
 class BannerService(BaseService):
-  def get_banner(self, banner_id):
-    banner = Banner.objects.filter(id=banner_id).first()
-    if not banner:
-      return {"error": "not_found"}, 404
-    return {"banner": BannerSchema.from_orm(banner).dict()}, 200
+    def get_banner(self, banner_id):
+        # AbstractBaseModel's manager already excludes soft-deleted rows.
+        return Banner.objects.filter(id=banner_id).first()
 ```
 
-**API / Interface (conceptual)**:
+**API** — a DRF view that returns a plain `Response`; gando wraps it into the
+standardized envelope in `finalize_response`:
 
 ```py
-from gando.architectures.apis import BaseAPI  # or BaseInterface
+from rest_framework import status
+from rest_framework.response import Response
+from gando.apis import BaseAPI
+from .services import BannerService
 
 
 class BannerAPI(BaseAPI):
-  def get(self, request, banner_id):
-    data, status = BannerService().get_banner(banner_id)
-    return ResponseSchema(success=(status == 200), status_code=status, data=data)
+    def get(self, request, banner_id):
+        banner = BannerService().get_banner(banner_id)
+        if banner is None:
+            # Attach a developer/enduser message and status; gando still
+            # returns the same envelope shape for errors as for success.
+            self.set_error_message("banner", "not found")
+            self.set_status_code(status.HTTP_404_NOT_FOUND)
+            return Response(None)
+        return Response({"id": banner.id, "title": banner.title})
 ```
 
-**Client-side Response wrapper** — `BaseResponseSchema` expects the JSON shape used across gando.
+You never build the envelope by hand: return your data (or `None` plus a
+status/message) and `BaseAPI` produces the consistent JSON described below.
 
 ---
 
-## Management commands / scaffolding (details)
+## Management commands / scaffolding
 
-Gando provides a set of management commands that scaffold folders and files in the target app:
+Gando scaffolds the conventional `repo/` package layout inside a target app.
+All commands take `-al/--applabel` plus a name flag, and are run from the
+project root (they rely on `settings.BASE_DIR` and the app folder structure):
 
-* `startmodel -al <app_label> -mn <modelname>`
-  Creates `repo/models/__<ModelName>.py`, updates `repo/models/__init__.py`, app-level `models.py`, `admin.py` entries,
-  `repo/schemas/models/__<modelname>.py`, and URL includes.
+| Command | Name flag | Creates |
+| --- | --- | --- |
+| `startmodel` | `-mn/--modelname` | model, admin, schema stubs and URL wiring under `repo/` |
+| `startapi` | `-an/--apiname` | an API view stub under `repo/apis/` (+ schema folder) |
+| `startservice` | `-sn/--servicename` | a service stub under `repo/services/` |
+| `startinterface` | `-in/--interfacename` | an interface stub under `repo/interfaces/` |
 
-* `startapi -al <app_label> -an <apiname>`
-  Creates `repo/apis/__<ApiName>.py` with a base API class.
+```bash
+python manage.py startmodel     -al your_app_label -mn Product
+python manage.py startapi       -al your_app_label -an Product
+python manage.py startservice   -al your_app_label -sn Product
+python manage.py startinterface -al your_app_label -in Product
+```
 
-* `startservice -al <app_label> -sn <servicename>`
-  Creates service module templates and schema folders.
-
-* `startinterface -al <app_label> -in <interfacename>`
-  Creates interface templates under `repo/interfaces`.
-
-**Note:** commands rely on `settings.BASE_DIR` and the app folder structure; run them from the project root.
+Each command wires its new module into the relevant `__init__.py` so the
+package stays importable as it grows.
 
 ---
 
 ## Response & request contract
 
-Gando standardizes API payloads. A canonical successful response includes:
+Every `BaseAPI` response — success or error — is normalized into one envelope.
+The default (verbose `1.0.0`) shape is:
 
 ```json
 {
   "success": true,
   "status_code": 200,
   "has_warning": false,
-  "exception_status": false,
   "monitor": {},
   "messenger": [],
   "many": false,
   "data": {
-    /* object or list depending on many */
-  },
-  "development_messages": {}
+    "...": "object, or a list when many=true"
+  }
 }
 ```
 
-`ResponseSchema` (server) and `BaseResponseSchema` (client helpers) map to the same shape. Use these everywhere to keep
-client & server consistent, reduce parsing errors and simplify error handling.
+* `success` / `status_code` — outcome and HTTP status.
+* `has_warning` / `messenger` — user-facing notices collected during the
+  request via `set_*_message(...)`.
+* `many` — whether `data` is a collection.
+* `monitor` — optional per-request telemetry populated from `SETTINGS.MONITOR`.
+* `development_messages` and `exception_status` — additional debugging fields
+  that appear only when development mode is enabled, so production payloads stay
+  lean.
+
+Because the shape never changes between endpoints, clients implement parsing
+and error handling exactly once. A compact `2.0.0` envelope is also available
+per-view for machine-to-machine consumers.
 
 ---
 
-## Important notes, gotchas & recommended fixes
+## Design notes & recent hardening (2.3.0)
 
-I reviewed the code you supplied deeply. Below are concrete findings and recommendations to make Gando safer, more
-robust and production-friendly.
+Earlier revisions of this README tracked a list of known rough edges. **All of
+them were fixed in `2.3.0`**; they are recorded here for transparency, not as
+open issues. See [`CHANGELOG.md`](./CHANGELOG.md) for the full detail.
 
-### 1. `Manager` naming & `available` field
+* **`QueryDictSerializer` image-prefix matching** — a flag initialized outside
+  the loop caused later matching prefixes to be skipped, and raw character
+  comparison could raise `IndexError` for merely-similar names. Now uses an
+  explicit `str.startswith(f"{prefix}_")` check.
+* **`QueryDictSerializer` nested merge** — the old order-dependent, lossy merge
+  was replaced with a non-mutating recursive deep merge.
+* **`QueryDictSerializer` media URL** — now reads
+  `getattr(settings, "MEDIA_URL", "")` instead of a bare `except`, so unrelated
+  errors are no longer swallowed.
+* **`BlurBase64Field` on remote storage** — previews are now computed by reading
+  the image through the Django storage/`FieldFile` API, so S3/GCS and other
+  non-local backends work (the old code assumed a local filesystem path).
+  `small_blur_base64` also accepts raw `bytes` and file-like objects.
+* **Bare `except` blocks removed** across models, response helpers, image
+  parsers and the scaffolding commands, replaced with narrowed handlers that no
+  longer suppress `KeyboardInterrupt`/`SystemExit`.
+* **Manager naming** — managers are explicit (`AbstractBaseModelManager`,
+  `BaseModelClassManager`, soft-delete managers), not a generic `Manager`.
+* **Packaging metadata corrected** — accurate `python_requires>=3.10`,
+  `pydantic>=2.0` pinned as required, and refreshed classifiers.
 
-* **Issue:** Generic name `Manager`. It's better to name `AvailableManager` or `ActiveManager`.
-* **Recommendation:** Consider using `BooleanField` if `available` is binary; if you anticipate more states, keep
-  integer but rename to `status`/`availability_state` with an Enum.
+No public class or function was renamed or removed in `2.3.0`; it is a
+backward-compatible release.
 
-### 2. `QueryDictSerializer` problems
+> **Version history note:** before `2.3.0` the tracked source had drifted from
+> what was actually shipped (source said `1.0.4` in an older `architectures/`
+> layout while consumers ran `gando-2.2.1` on the current flat layout). The
+> repository has since been reconciled to the real shipped baseline, and the
+> changelog is maintained going forward.
 
-* `__image_field_name_parser` uses a `equal` variable that is not correctly reset per loop — this creates incorrect
-  prefix matching.
-* `__updater` function is fragile and can lose values or produce inconsistent structures for nested merges.
-* `__media_url` uses a bare `except:` — this hides unrelated errors.
+---
 
-**Fix suggestions (high level):**
+## Development & tests
 
-* Replace prefix comparison logic with `str.startswith(prefix)`.
-* Implement a robust `deep_merge(a, b)` for dictionaries where `b` values override or are appended appropriately.
-* Use `getattr(settings, "MEDIA_URL", "")` instead of try/except.
+Gando ships with a `pytest` + `pytest-django` suite (`tests/`) backed by a
+minimal in-memory SQLite settings module (`tests/settings.py`); pytest is
+configured in `setup.cfg`.
 
-*Short fixed sketch (extract):*
-
-```py
-# safer prefix check
-def __image_field_name_parser(self, field_name):
-  for img in self.image_fields_name:
-    if field_name.startswith(img + "_"):
-      return [img, field_name[len(img) + 1:]]
-  return [field_name]
-
-
-# safer media url
-from django.conf import settings
-
-
-@property
-def __media_url(self):
-  return getattr(settings, 'MEDIA_URL', '')
+```bash
+pip install -e .
+pip install pytest pytest-django
+pytest
 ```
 
-(I can provide a full refactor patch if you want — it will be longer but makes the serializer robust.)
+The suite covers the serializer fixes, the blur-preview converter,
+`BlurBase64Field.pre_save` (including remote-storage and missing-file paths),
+the request/user helpers, and response parsing. New behavior and bug fixes are
+expected to come with tests.
 
-### 3. `BlurBase64Field.pre_save` and remote storage
+Build the distribution locally with:
 
-* **Issue:** `small_blur_base64(_src.file.name)` assumes a local filename and direct filesystem access. If you use
-  remote storages (S3, GCS) this will fail.
-* **Recommendation:** Read file content via Django storage API:
-
-```py
-from django.core.files.storage import default_storage
-
-if _src:
-  try:
-    with default_storage.open(_src.name, 'rb') as fh:
-      blur = small_blur_base64(fh.read())  # accept bytes in small_blur_base64
-      setattr(model_instance, self.attname, blur)
-  except Exception:
-    # handle/log but don't silence unexpected exceptions
-    raise
+```bash
+python -m build
 ```
-
-Also consider moving `small_blur_base64` processing off the request thread to a background job (Celery) or compute it
-once on upload.
-
-### 4. Bare `except:` usage
-
-* There are several `except:` usages that silence all exceptions. Replace with targeted exception types, or at least log
-  and re-raise unexpected ones.
-
-### 5. `BaseModelAdmin` behavior & names
-
-* `list_display` setter uses `id_`, `available_` names which are fine, but keep docstrings and explicit `list_display`
-  examples in README.
-* Document `image_fields_name_list` usage in admin to ensure image fieldsets are created.
-
-### 6. Management commands argument handling
-
-* The command handlers expect `kwargs` dict and set `self.app_label = kwargs`. The setter then reads
-  `kwargs.get('applabel')`. This works but is unusual — be explicit in docs that flags are named `-al/--applabel` etc.
-  Also check behavior when flags are missing: the code raises `CommandError` as expected.
-
-### 7. History size & retention
-
-* `HistoricalRecords` on many models can balloon DB size. Add guidance for history pruning or retention policies.
-
-### 8. Packaging / dependencies
-
-* In `setup.py` you currently list unpinned dependencies: prefer minimum versions and ranges for stability, e.g.
-  `Django>=4.2,<5.0`, `djangorestframework>=3.12,<4.0`.
-
----
-
-## Development, tests & CI
-
-Recommended development stack for the repo:
-
-* **Formatter & linters:** Black, isort, flake8
-* **Type checks:** mypy (use strictness progressively)
-* **Testing:** pytest + pytest-django
-* **Coverage:** coveralls or codecov; aim for > 80% initially.
-* **Pre-commit hooks:** pre-commit for formatting and sanity checks.
-* **Docs:** Sphinx with `sphinx-autodoc` + READTHEDOCS pipeline
-* **CI:** GitHub Actions (lint → tests → packaging → publish on tags)
-
-Example `.github/workflows/ci.yml` stages:
-
-1. Install dependencies (pinned).
-2. Run `black --check`, `isort --check`, `flake8`.
-3. Run tests with `pytest`.
-4. Publish wheel on tag.
-
----
-
-## Roadmap (suggested)
-
-* **v0.1.x**: Stabilize current APIs, fix QueryDictSerializer, address image storage, add tests & docs.
-* **v0.2.x**: Add optional DRF/async adaptors, Celery tasks for image processing, plugin hooks.
-* **v1.0.0**: Public stable release with SemVer, complete docs, examples project and migration guides.
-
-Use Semantic Versioning (MAJOR.MINOR.PATCH) and maintain a `CHANGELOG.md` following *Keep a Changelog*.
 
 ---
 
 ## Contributing
 
 1. Fork the repo and create a feature branch.
-2. Run tests locally.
-3. Format code with `black` and check `flake8`.
-4. Open PR describing the change and tests.
-5. Maintainers will review and merge after CI passes.
+2. Add or update tests for any behavior change, and run `pytest`.
+3. Update docstrings and [`CHANGELOG.md`](./CHANGELOG.md) for any public change.
+4. Open a PR describing the change and its tests.
 
-Please include unit tests for behavior changes and update docs when public APIs change.
+Please keep changes backward compatible by default; breaking changes require a
+MAJOR version bump and a clear changelog entry explaining why.
 
 ---
 
 ## License & contact
 
-Gando is released under the **MIT License**. See `LICENSE` for details.
-Author: `Hydra` ([navidsoleymani@ymail.com](mailto:navidsoleymani@ymail.com)) — repository:
-`https://github.com/navidsoleymani/gando.git`.
+Gando is released under the **MIT License** — see [`LICENSE`](./LICENSE).
 
----
-
-## Appendix — Short patch examples
-
-**1) Safer `__media_url`:**
-
-```py
-from django.conf import settings
-
-
-@property
-def __media_url(self):
-  return getattr(settings, 'MEDIA_URL', '')
-```
-
-**2) Simpler image prefix parser:**
-
-```py
-def __image_field_name_parser(self, field_name):
-  # return [prefix, suffix] if field_name starts with any image prefix
-  for img in self.image_fields_name:
-    prefix = f'{img}_'
-    if field_name.startswith(prefix):
-      return [img, field_name[len(prefix):]]
-  return [field_name]
-```
-
-**3) Example `deep_merge` (dict merge):**
-
-```py
-def deep_merge(a, b):
-  if not isinstance(a, dict) or not isinstance(b, dict):
-    return b
-  out = dict(a)
-  for k, v in b.items():
-    if k in out and isinstance(out[k], dict) and isinstance(v, dict):
-      out[k] = deep_merge(out[k], v)
-    elif k in out and isinstance(out[k], list) and isinstance(v, list):
-      out[k] = out[k] + v
-    else:
-      out[k] = v
-  return out
-```
-
----
-
-## Final note
-
-You already have a strong, well-structured foundation. With a few fixes (robust serializer merging, safe storage access,
-explicit exception handling) and solid test coverage, Gando will be a great, reliable toolkit for Horin projects.
-
-If you want, I can now:
-
-* produce a **full, polished `README.md`** file ready to replace the one in your repo (I can drop it into the `canmore`
-  canvas or paste it here), **or**
-* prepare a PR-style patch with the exact code changes for the `QueryDictSerializer`, `BlurBase64Field.pre_save`, and
-  other issues I flagged.
-
-Which of those do you want me to do next?
+* Author: `Hydra` — [navidsoleymani@ymail.com](mailto:navidsoleymani@ymail.com)
+* Repository: <https://github.com/navidsoleymani/gando>
+* PyPI: <https://pypi.org/project/gando/>
