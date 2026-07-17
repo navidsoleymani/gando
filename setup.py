@@ -30,20 +30,22 @@ setuptools.setup(
         'Intended Audience :: Developers',
         'Topic :: Software Development :: Build Tools',
 
-        # The codebase uses PEP 604 (``X | Y``) unions at runtime, which
-        # require Python 3.10+, so only 3.10+ interpreters are advertised.
-        'Programming Language :: Python :: 3.10',
-        'Programming Language :: Python :: 3.11',
-        'Programming Language :: Python :: 3.12',
-        'Programming Language :: Python :: 3.13',
+        # ``gando.models.abstract_model_class.ModelClass.id`` uses
+        # ``default=uuid.uuid7`` -- ``uuid.uuid7`` was only added to the
+        # standard library in Python 3.14, so 3.14 (not 3.10, despite PEP 604
+        # unions only requiring 3.10) is the real floor: importing
+        # ``gando.models`` on any older interpreter raises
+        # ``AttributeError: module 'uuid' has no attribute 'uuid7'``.
+        'Programming Language :: Python :: 3.14',
         'Programming Language :: Python :: 3 :: Only',
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
     ],
-    # PEP 604 unions (e.g. ``str | None``) are evaluated at runtime in several
-    # modules (management commands, schemas), so 3.8/3.9 cannot even import the
-    # package. 3.10 is the true minimum.
-    python_requires='>=3.10',
+    # Corrected from ">=3.10" (a prior pass's PEP-604-unions-only analysis):
+    # ``uuid.uuid7`` (used as a model field default in
+    # ``gando/models/abstract_model_class.py``) does not exist before
+    # Python 3.14, so anything older cannot import ``gando.models`` at all.
+    python_requires='>=3.14',
     install_requires=[
         # Conservative *lower* bounds only. No upper caps: gando is used with
         # modern Django (6.x) / DRF stacks and must not artificially exclude

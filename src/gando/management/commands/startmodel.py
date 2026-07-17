@@ -300,13 +300,19 @@ class Command(BaseCommand):
 
     @staticmethod
     def __new_line(file_name):
-        tmp = ''
+        """Return ``"\n"`` when a newline must be inserted before appending.
+
+        Regression: the previous implementation indexed ``lines[-1]``
+        unconditionally, which raised ``IndexError`` whenever ``file_name``
+        was empty -- the normal state of a freshly created ``__init__.py``
+        (``package_maker`` only ``touch()``es it). That made every one of
+        these scaffolding commands crash the *first* time they were run
+        against a brand new package.
+        """
         with open(file_name, 'r') as f:
             lines = f.read()
-            if lines[-1] != '\n':
-                tmp = '\n'
 
-        ret = tmp
+        ret = '' if not lines or lines[-1] == '\n' else '\n'
         return ret
 
     @staticmethod

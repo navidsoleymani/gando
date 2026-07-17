@@ -1,4 +1,27 @@
+"""Helpers to mutate an (otherwise-immutable) DRF ``request.data`` in place.
+
+Used by :meth:`gando.apis.base.GenericAPIView.adding_user_id_to_request_data`
+to inject the authenticated user's id into ``request.data`` on every
+``POST``/``PUT``/``PATCH`` -- a security-relevant helper (it is what lets a
+view trust ``request.data['user']`` as the *authenticated* user rather than
+whatever the client claims).
+"""
+
 from rest_framework.exceptions import APIException
+
+
+def _has_request_data(request) -> bool:
+    """Return whether ``request`` carries a (possibly empty) ``.data`` mapping.
+
+    Only presence/``None``-ness is checked -- **not** truthiness. A previous
+    version used ``hasattr(request, 'data') and request.data``, which treats
+    an empty dict (``{}``, the common case for a client-supplied body that
+    the server is expected to fill in entirely, e.g. an empty "like this
+    post" request relying on the server to inject ``user``) as "no data",
+    silently skipping the add/remove/change operation exactly when it was
+    needed most.
+    """
+    return hasattr(request, 'data') and request.data is not None
 
 
 def _request_mutable(req):
@@ -15,7 +38,7 @@ def _request_immutable(req):
 
 def _request_adder(request, **kwargs):
     try:
-        if not (hasattr(request, 'data') and request.data):
+        if not _has_request_data(request):
             return request
 
         request = _request_mutable(request)
@@ -34,7 +57,7 @@ def _request_adder(request, **kwargs):
 
 def _request_remover(request, **kwargs):
     try:
-        if not (hasattr(request, 'data') and request.data):
+        if not _has_request_data(request):
             return request
 
         request = _request_mutable(request)
@@ -53,7 +76,7 @@ def _request_remover(request, **kwargs):
 
 def _request_changer(request, **kwargs):
     try:
-        if not (hasattr(request, 'data') and request.data):
+        if not _has_request_data(request):
             return request
 
         request = _request_mutable(request)

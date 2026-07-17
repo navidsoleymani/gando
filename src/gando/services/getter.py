@@ -80,8 +80,24 @@ class BaseGetterService(BaseService):
         return ret
 
     def __filters(self, **filters) -> dict:
+        """Build the ``.filter(**...)`` kwargs dict from ``filter_schema``.
+
+        Fields the caller did not supply fall back to their pydantic default
+        (typically ``None``); those are dropped via ``exclude_none=True`` so
+        an unset filter does not turn into an accidental
+        ``.filter(some_field=None)`` constraint on the queryset.
+
+        Notes
+        -----
+        A previous version called the nonexistent ``dict.extract()`` on the
+        result of ``model_dump()`` (plain ``dict`` has no such method), which
+        raised ``AttributeError`` unconditionally -- since this method runs
+        from ``__init__``, simply instantiating *any* ``BaseGetterService``
+        subclass crashed, regardless of whether ``get_from_db()`` was ever
+        called.
+        """
         inst = self.filter_schema(**filters)
-        ret = inst.model_dump().extract()
+        ret = inst.model_dump(exclude_none=True)
         return ret
 
     def __many(self, *args, **kwargs) -> bool:

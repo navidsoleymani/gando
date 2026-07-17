@@ -435,10 +435,19 @@ class BaseAPI(APIView):
             The `detail` payload from a DRF `APIException`.
         base_key: Optional[str]
             The parent key used to build hierarchical keys for nested structures.
+
+        Notes
+        -----
+        ``base_key`` is threaded through list recursion (not just dict
+        recursion): a previous version dropped it when descending into a
+        list (``self._exception_handler_messages(e)`` with no ``base_key``),
+        so the very common DRF shape ``{"field": ["This field is
+        required."]}`` lost its ``field`` context and was recorded under the
+        bare leaf code instead of ``field__<code>``.
         """
         if isinstance(msg, list):
             for e in msg:
-                self._exception_handler_messages(e)
+                self._exception_handler_messages(e, base_key=base_key)
         elif isinstance(msg, dict):
             for k, v in msg.items():
                 self._exception_handler_messages(v, base_key=k)

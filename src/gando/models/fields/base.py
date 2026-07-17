@@ -8,19 +8,38 @@ from gando.utils.uploaders.images import ImageUploadTo
 from gando.config import SETTINGS
 
 
-def verbose_name(value: str):
-    tmp = value[0].upper()
-    i = 1
-    while i < len(value):
-        if value[i] != '_':
-            tmp += value[i]
-        else:
-            tmp += ' '
-            i += 1
-            tmp += value[i].upper()
-        i += 1
-    ret = tmp
-    return ret
+def verbose_name(value: str) -> str:
+    """Turn a ``snake_case`` field name into a human-readable title.
+
+    Each underscore-separated token has its first character upper-cased and
+    is joined back with a single space, e.g. ``"device_type"`` ->
+    ``"Device Type"``. This mirrors the historical implementation for every
+    normal snake_case input.
+
+    Empty strings and leading/trailing/doubled underscores no longer raise
+    ``IndexError``/``AttributeError`` (the previous character-by-character
+    walk indexed one past the end of the string whenever ``value`` ended
+    with an underscore, and crashed outright on an empty string): tokens are
+    simply skipped when empty, and an empty input is returned unchanged.
+
+    Examples
+    --------
+    >>> verbose_name('avatar')
+    'Avatar'
+    >>> verbose_name('device_type')
+    'Device Type'
+    >>> verbose_name('type_')  # trailing underscore, e.g. to avoid shadowing a builtin
+    'Type'
+    """
+    if not value:
+        return value
+
+    tokens = [token for token in value.split('_') if token]
+    if not tokens:
+        # ``value`` was made up entirely of underscores (e.g. "___").
+        return value
+
+    return ' '.join(token[0].upper() + token[1:] for token in tokens)
 
 
 class BlurBase64Field(models.TextField):
