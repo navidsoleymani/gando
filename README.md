@@ -25,9 +25,16 @@ Baluchestan in Iran: compact and purpose-built.
 Gando is a real, actively maintained toolkit built by **Horin Software Group**,
 extracted from production Django services and published for reuse. It is used in
 production today. Releases follow [Semantic Versioning](https://semver.org/) and
-every change is recorded in [`CHANGELOG.md`](./CHANGELOG.md). The `2.3.0` release
-was a hardening pass (bug fixes, a first test suite, corrected packaging
-metadata) — see [Design notes & recent hardening](#design-notes--recent-hardening-230).
+every change is recorded in [`CHANGELOG.md`](./CHANGELOG.md). `2.3.0` and `2.3.1`
+were back-to-back hardening passes (bug fixes found by writing real tests for
+previously-uncovered code, packaging corrections, a test suite grown from
+zero to 198 tests) — see [Design notes & recent hardening](#design-notes--recent-hardening).
+
+> **Note — Python 3.14+ is required.** `ModelClass.id` (the base of every
+> model built on `AbstractBaseModel`) defaults to `uuid.uuid7`, which the
+> standard library only gained in 3.14. This is reflected in
+> `python_requires`, not just documented here — `pip install` will refuse
+> older interpreters.
 
 ---
 
@@ -40,7 +47,7 @@ metadata) — see [Design notes & recent hardening](#design-notes--recent-harden
 5. [Examples: model → admin → API → response](#examples-model--admin--api--response)
 6. [Management commands / scaffolding](#management-commands--scaffolding)
 7. [Response & request contract](#response--request-contract)
-8. [Design notes & recent hardening (2.3.0)](#design-notes--recent-hardening-230)
+8. [Design notes & recent hardening](#design-notes--recent-hardening)
 9. [Development & tests](#development--tests)
 10. [Contributing](#contributing)
 11. [License & contact](#license--contact)
@@ -92,8 +99,10 @@ pip install -e .
 
 **Requirements** (declared in `setup.py`):
 
-* `python_requires='>=3.10'` — the codebase uses PEP 604 (`X | Y`) unions at
-  runtime, so 3.10 is the true minimum.
+* `python_requires='>=3.14'` — `gando.models.abstract_model_class.ModelClass.id`
+  defaults to `uuid.uuid7`, added to the standard library in Python 3.14; the
+  codebase also uses PEP 604 (`X | Y`) unions at runtime (3.10+), but the
+  `uuid.uuid7` dependency is the real floor.
 * Runtime dependencies (conservative lower bounds, no upper caps):
   `Django>=4.2`, `djangorestframework>=3.14`, `pydantic>=2.0`, `Pillow>=9.0`,
   `django-simple-history>=3.3`, `django-filter>=23.0`, `markdown>=3.4`,
@@ -320,11 +329,37 @@ per-view for machine-to-machine consumers.
 
 ---
 
-## Design notes & recent hardening (2.3.0)
+## Design notes & recent hardening
 
-Earlier revisions of this README tracked a list of known rough edges. **All of
-them were fixed in `2.3.0`**; they are recorded here for transparency, not as
-open issues. See [`CHANGELOG.md`](./CHANGELOG.md) for the full detail.
+Earlier revisions of this README tracked a list of known rough edges. **All
+of them have since been fixed** (across `2.3.0` and `2.3.1`); they are
+recorded here for transparency, not as open issues. See
+[`CHANGELOG.md`](./CHANGELOG.md) for the full, exact detail behind every
+bullet below.
+
+### `2.3.1` — a second pass, this time led by tests
+
+Every fix below was *found* by writing a real test for previously-uncovered
+"sensitive/critical" code — none were spotted by inspection alone. No public
+class or function was renamed or removed; it is a backward-compatible
+bug-fix release.
+
+| Area | What was wrong | Fix |
+| --- | --- | --- |
+| `startapi`/`startservice`/`startinterface` | Generated stub imported from the non-existent, pre-2.x `gando.architectures.*` path — guaranteed `ModuleNotFoundError` on the very code the command just created. | Imports the real flat-layout modules (`gando.apis`, `gando.services`, `gando.interfaces`). |
+| All four `start*` commands | Crashed (`IndexError`) the *first* time run against a brand-new package, because the freshly-`touch()`ed `__init__.py` is empty. | Empty file is now treated as "nothing to separate from". |
+| `HEXColor` validator | Unparenthesized `\|` alternation accepted junk before/after a valid-looking hex color (`"#FF0000<script>"` passed). | Both alternatives now anchored inside one `^#?(...)$` group. |
+| `BaseGetterService` | Crashed unconditionally on construction — `dict.model_dump().extract()`, and `dict` has no `.extract()`. | Uses `model_dump(exclude_none=True)` directly. |
+| `adding_user_id_to_request_data` | Silently no-op'd whenever `request.data` started out as an empty (but present) dict — exactly the common "empty body, let the server fill in `user`" case. | Guard now checks presence/`None`-ness, not truthiness. |
+| `_exception_handler_messages` | Dropped the parent field name when a DRF error detail's value was a list (`{"field": ["required"]}` lost `"field"`). | `base_key` is now threaded through list recursion too. |
+| `verbose_name()` | `IndexError` on an empty string or a field name ending in `_` (e.g. `type_`). | Rewritten as a safe tokenizer; identical output for normal input. |
+| `gando.utils.json.encoders.Encoder` | Silently serialized unsupported types as JSON `null` instead of raising `TypeError`, hiding bugs in callers. | Delegates to `super().default(obj)` for non-date/datetime types. |
+| Packaging metadata | Claimed Python 3.10–3.13 support; `uuid.uuid7` (Python 3.14+) made that false. | `python_requires` corrected to `>=3.14`. |
+
+### `2.3.0` — the first hardening pass
+
+<details>
+<summary>Expand for the full <code>2.3.0</code> list (click to show)</summary>
 
 * **`QueryDictSerializer` image-prefix matching** — a flag initialized outside
   the loop caused later matching prefixes to be skipped, and raw character
@@ -344,11 +379,9 @@ open issues. See [`CHANGELOG.md`](./CHANGELOG.md) for the full detail.
   longer suppress `KeyboardInterrupt`/`SystemExit`.
 * **Manager naming** — managers are explicit (`AbstractBaseModelManager`,
   `BaseModelClassManager`, soft-delete managers), not a generic `Manager`.
-* **Packaging metadata corrected** — accurate `python_requires>=3.10`,
-  `pydantic>=2.0` pinned as required, and refreshed classifiers.
-
-No public class or function was renamed or removed in `2.3.0`; it is a
-backward-compatible release.
+* **Packaging metadata corrected** — accurate `python_requires>=3.10` (later
+  superseded by `>=3.14` in `2.3.1`, see above), `pydantic>=2.0` pinned as
+  required, and refreshed classifiers.
 
 > **Version history note:** before `2.3.0` the tracked source had drifted from
 > what was actually shipped (source said `1.0.4` in an older `architectures/`
@@ -356,13 +389,17 @@ backward-compatible release.
 > repository has since been reconciled to the real shipped baseline, and the
 > changelog is maintained going forward.
 
+</details>
+
 ---
 
 ## Development & tests
 
-Gando ships with a `pytest` + `pytest-django` suite (`tests/`) backed by a
-minimal in-memory SQLite settings module (`tests/settings.py`); pytest is
-configured in `setup.cfg`.
+Gando ships with a `pytest` + `pytest-django` suite (`tests/`, **198 tests**)
+backed by a minimal in-memory SQLite settings module (`tests/settings.py`)
+and a tiny `tests/testapp` Django app (a single concrete model built on
+`AbstractBaseModel`, used to test the soft-delete manager against a real
+table); pytest is configured in `setup.cfg`.
 
 ```bash
 pip install -e .
@@ -370,10 +407,16 @@ pip install pytest pytest-django
 pytest
 ```
 
-The suite covers the serializer fixes, the blur-preview converter,
-`BlurBase64Field.pre_save` (including remote-storage and missing-file paths),
-the request/user helpers, and response parsing. New behavior and bug fixes are
-expected to come with tests.
+The suite covers, among other things: every `gando.utils.validators.*` type,
+the password hashers, `BaseAPI`'s response envelope and exception-message
+flattening, `GenericAPIView`'s security helpers (`check_validate_user`,
+`adding_user_id_to_request_data`), `DestroyAPIView`'s soft/hard delete, the
+`AbstractBaseModel` soft-delete manager, the `BaseGetterService` construction
+path, the `start*` scaffolding commands (including the fixes above), the
+`QueryDictSerializer` fixes, the blur-preview converter,
+`BlurBase64Field.pre_save` (including remote-storage and missing-file
+paths), string casing conversions, and response parsing. New behavior and
+bug fixes are expected to come with tests.
 
 Build the distribution locally with:
 
