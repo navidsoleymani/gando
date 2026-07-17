@@ -144,7 +144,8 @@ class Command(BaseCommand):
             apps.get_interface(app_label=self.app_label,
                 interface_name=self.interface_name)
             return True
-        except:
+        except Exception:
+            # Treat any registry lookup failure as "does not exist yet".
             return False
 
     __application_path: str | None = None

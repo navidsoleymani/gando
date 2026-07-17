@@ -93,7 +93,8 @@ class Image:
             img = base64.b64encode(buffered.getvalue()).decode('utf-8')
 
             return f'data:{mimetype};base64,{img}'
-        except:
+        except Exception:
+            # Best-effort preview: any image decode/IO error degrades to "".
             return ''
 
     def __proportion(self) -> int:
@@ -155,5 +156,6 @@ class Image:
                     f"{s['width']}X{s['height']}"] = f'data:{mimetype};base64,{img}'
 
             return ret
-        except:
+        except Exception:
+            # Best-effort thumbnails: return whatever was built before failure.
             return ret

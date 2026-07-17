@@ -142,7 +142,8 @@ class Command(BaseCommand):
 
             apps.get_api(app_label=self.app_label, api_name=self.api_name)
             return True
-        except:
+        except Exception:
+            # Treat any registry lookup failure as "does not exist yet".
             return False
 
     __application_path: str | None = None

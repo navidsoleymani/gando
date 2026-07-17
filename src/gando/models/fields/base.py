@@ -24,16 +24,51 @@ def verbose_name(value: str):
 
 
 class BlurBase64Field(models.TextField):
+    """A ``TextField`` that auto-computes a blurred base64 preview on save.
+
+    The value is derived, in :meth:`pre_save`, from the companion
+    ``<PARENT_FIELD_NAME>_src`` image field on the same model instance. The
+    field renders no form widget (:meth:`formfield` returns ``None``) because
+    its value is always computed rather than entered by hand.
+    """
+
     def formfield(self, **kwargs):
+        """Return ``None`` so this computed field is never rendered in forms."""
         return None
 
     def pre_save(self, model_instance, add):
+        """Compute the blurred preview from the companion image before saving.
+
+        The image content is read through the ``FieldFile``/storage API rather
+        than via a local filesystem path, so this works with **remote**
+        storages (S3/GCS/etc.) as well as local storage. The previous
+        implementation passed ``_src.file.name`` — a storage-relative name that
+        :func:`PIL.Image.open` treats as a local path — which silently produced
+        no preview on any non-local backend.
+        """
         _src = None
         if hasattr(model_instance, f'{self.PARENT_FIELD_NAME}_src'):
             _src = getattr(model_instance, f'{self.PARENT_FIELD_NAME}_src')
         if _src:
-            setattr(model_instance, self.attname,
-                small_blur_base64(_src.file.name))
+            blur = None
+            try:
+                # Open through the storage backend (works locally and remotely)
+                # and hand PIL a readable file-like object.
+                _src.open('rb')
+                try:
+                    blur = small_blur_base64(_src)
+                finally:
+                    # Rewind so the subsequent ImageField save, which reads the
+                    # same file, starts from the beginning.
+                    try:
+                        _src.seek(0)
+                    except (ValueError, OSError):
+                        pass
+            except (FileNotFoundError, OSError, ValueError):
+                # Missing/unreadable file: the preview is optional, so degrade
+                # gracefully instead of breaking the model save.
+                blur = None
+            setattr(model_instance, self.attname, blur)
 
         return super().pre_save(model_instance, add)
 

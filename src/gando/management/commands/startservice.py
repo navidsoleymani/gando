@@ -144,7 +144,8 @@ class Command(BaseCommand):
             apps.get_service(app_label=self.app_label,
                 service_name=self.service_name)
             return True
-        except:
+        except Exception:
+            # Treat any registry lookup failure as "does not exist yet".
             return False
 
     __application_path: str | None = None

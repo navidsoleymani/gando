@@ -175,7 +175,8 @@ class Command(BaseCommand):
             apps.get_model(app_label=self.app_label,
                 model_name=self.model_name)
             return True
-        except:
+        except Exception:
+            # Treat any registry lookup failure as "does not exist yet".
             return False
 
     __application_path: str | None = None

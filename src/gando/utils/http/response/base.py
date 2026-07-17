@@ -27,7 +27,8 @@ def inf_response(instance):
     try:
         page_size_inf = int(
             instance.request.query_params.get("page_size_inf", 0))
-    except:
+    except (TypeError, ValueError):
+        # Non-numeric or missing "page_size_inf" query param -> disabled.
         page_size_inf = 0
 
     if page_size_inf == 1:
