@@ -2,7 +2,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/gando?label=PyPI\&logo=python)](https://pypi.org/project/gando) <!-- placeholder -->
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-![Gando Logo](https://raw.githubusercontent.com/navidsoleymani/gando/main/assets/gando.png)
+![Gando Logo](./assets/gando-banner-for-md-readme.png)
 
 **Gando** is a collection of batteries-included tools, conventions and scaffolding utilities built on top of Django to
 standardize and accelerate development for the Horin engineering teams.
