@@ -1,1 +1,1 @@
-from .__asyncio import AsyncoRequestManager
+from .asyncio import AsyncoRequestManager

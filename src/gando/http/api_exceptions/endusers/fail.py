@@ -23,8 +23,11 @@ class EnduserFailResponseAPIMessage(EnduserResponseAPIMessage):
         )
 
 
-class EnduserFailResponseAPIMessageInternalServerError500(EnduserFailResponseAPIMessage):
-    def __init__(self, message=BASE_ENDUSER_FAIL_MESSAGE, code=BASE_ENDUSER_FAIL_CODE):
+class EnduserFailResponseAPIMessageInternalServerError500(
+    EnduserFailResponseAPIMessage):
+    def __init__(
+        self, message=BASE_ENDUSER_FAIL_MESSAGE,
+        code=BASE_ENDUSER_FAIL_CODE):
         super().__init__(
             message=message,
             code=code,

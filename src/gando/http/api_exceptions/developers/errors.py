@@ -23,15 +23,18 @@ class DeveloperErrorResponseAPIMessage(DeveloperResponseAPIMessage):
         )
 
 
-class DeveloperErrorResponseAPIMessageBadRequest400(DeveloperErrorResponseAPIMessage):
-    def __init__(self, message=BASE_DEVELOPER_ERROR_MESSAGE, code='bad_request'):
+class DeveloperErrorResponseAPIMessageBadRequest400(
+    DeveloperErrorResponseAPIMessage):
+    def __init__(
+        self, message=BASE_DEVELOPER_ERROR_MESSAGE, code='bad_request'):
         super().__init__(
             message=message,
             code=code,
         )
 
 
-class DeveloperErrorResponseAPIMessageForbidden403(DeveloperErrorResponseAPIMessage):
+class DeveloperErrorResponseAPIMessageForbidden403(
+    DeveloperErrorResponseAPIMessage):
     def __init__(
         self,
         message="You do not have permission to access this resource. "
@@ -47,7 +50,8 @@ class DeveloperErrorResponseAPIMessageForbidden403(DeveloperErrorResponseAPIMess
         )
 
 
-class DeveloperErrorResponseAPIMessageUnauthorized401(DeveloperErrorResponseAPIMessage):
+class DeveloperErrorResponseAPIMessageUnauthorized401(
+    DeveloperErrorResponseAPIMessage):
     def __init__(
         self,
         message="To access this tool, you need to submit authentication documents. "
@@ -63,7 +67,8 @@ class DeveloperErrorResponseAPIMessageUnauthorized401(DeveloperErrorResponseAPIM
         )
 
 
-class DeveloperErrorResponseAPIMessageNotFound404(DeveloperErrorResponseAPIMessage):
+class DeveloperErrorResponseAPIMessageNotFound404(
+    DeveloperErrorResponseAPIMessage):
     def __init__(
         self,
         message="The data you are looking for was not found.",

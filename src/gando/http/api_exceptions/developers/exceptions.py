@@ -23,8 +23,11 @@ class DeveloperExceptionResponseAPIMessage(DeveloperResponseAPIMessage):
         )
 
 
-class DeveloperExceptionResponseAPIMessageInternalServerError500(DeveloperExceptionResponseAPIMessage):
-    def __init__(self, message=BASE_DEVELOPER_EXCEPTION_MESSAGE, code='internal_server_error'):
+class DeveloperExceptionResponseAPIMessageInternalServerError500(
+    DeveloperExceptionResponseAPIMessage):
+    def __init__(
+        self, message=BASE_DEVELOPER_EXCEPTION_MESSAGE,
+        code='internal_server_error'):
         super().__init__(
             message=message,
             code=code,

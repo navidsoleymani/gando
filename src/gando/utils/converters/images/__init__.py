@@ -1,1 +1,1 @@
-from .__small_blur_base64 import small_blur_base64
+from .base import small_blur_base64

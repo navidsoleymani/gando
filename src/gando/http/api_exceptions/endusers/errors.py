@@ -23,15 +23,18 @@ class EnduserErrorResponseAPIMessage(EnduserResponseAPIMessage):
         )
 
 
-class EnduserErrorResponseAPIMessageBadRequest400(EnduserErrorResponseAPIMessage):
-    def __init__(self, message=BASE_ENDUSER_ERROR_MESSAGE, code='bad_request'):
+class EnduserErrorResponseAPIMessageBadRequest400(
+    EnduserErrorResponseAPIMessage):
+    def __init__(
+        self, message=BASE_ENDUSER_ERROR_MESSAGE, code='bad_request'):
         super().__init__(
             message=message,
             code=code,
         )
 
 
-class EnduserErrorResponseAPIMessageForbidden403(EnduserErrorResponseAPIMessage):
+class EnduserErrorResponseAPIMessageForbidden403(
+    EnduserErrorResponseAPIMessage):
     def __init__(
         self,
         message="You do not have permission to access this resource. "
@@ -47,7 +50,8 @@ class EnduserErrorResponseAPIMessageForbidden403(EnduserErrorResponseAPIMessage)
         )
 
 
-class EnduserErrorResponseAPIMessageUnauthorized401(EnduserErrorResponseAPIMessage):
+class EnduserErrorResponseAPIMessageUnauthorized401(
+    EnduserErrorResponseAPIMessage):
     def __init__(
         self,
         message="To access this tool, you need to submit authentication documents. "
@@ -63,7 +67,8 @@ class EnduserErrorResponseAPIMessageUnauthorized401(EnduserErrorResponseAPIMessa
         )
 
 
-class EnduserErrorResponseAPIMessageNotFound404(EnduserErrorResponseAPIMessage):
+class EnduserErrorResponseAPIMessageNotFound404(
+    EnduserErrorResponseAPIMessage):
     def __init__(
         self,
         message="The data you are looking for was not found.",

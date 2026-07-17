@@ -1,12 +1,11 @@
-from pathlib import Path
 import os
-from pydantic import BaseModel as BaseSchema
+from pathlib import Path
 
-from django.core.management.base import BaseCommand, CommandError
 from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
 
+from gando.utils.strings.casings import PASCAL_CASE
 from gando.utils.strings.converters import casing
-from gando.utils.strings.casings import PASCAL_CASE, KEBAB_CASE
 
 # definitions
 PROJECT_PATH = settings.BASE_DIR
@@ -47,15 +46,18 @@ class BasePackages:
         self.repo__schemas: BasePackageInfo = BasePackageInfo(
             path=package_maker(parent_path=self.repo.path, name='schemas'))
         self.repo__schemas__interfaces: BasePackageInfo = BasePackageInfo(
-            path=package_maker(parent_path=self.repo__schemas.path, name='interfaces'))
+            path=package_maker(parent_path=self.repo__schemas.path,
+                name='interfaces'))
         self.repo__interfaces: BasePackageInfo = BasePackageInfo(
-            path=package_maker(parent_path=self.repo.path, name='interfaces'))
+            path=package_maker(parent_path=self.repo.path,
+                name='interfaces'))
 
 
 class Command(BaseCommand):
-    help = ("This command helps us to automatically create the basic prerequisites of "
-            "this interface when we define a interface, so that we can personalize each of "
-            "the tools that are created automatically if needed.")
+    help = (
+        "This command helps us to automatically create the basic prerequisites of "
+        "this interface when we define a interface, so that we can personalize each of "
+        "the tools that are created automatically if needed.")
 
     def add_arguments(self, parser):
         """
@@ -83,7 +85,8 @@ class Command(BaseCommand):
         self.application_path = kwargs
 
         # set Base Packages path
-        self.base_packages = BasePackages(application_path=self.application_path)
+        self.base_packages = BasePackages(
+            application_path=self.application_path)
 
         self.initial_interface()
 
@@ -138,7 +141,8 @@ class Command(BaseCommand):
         try:
             from django.apps import apps
 
-            apps.get_interface(app_label=self.app_label, interface_name=self.interface_name)
+            apps.get_interface(app_label=self.app_label,
+                interface_name=self.interface_name)
             return True
         except:
             return False
@@ -151,12 +155,15 @@ class Command(BaseCommand):
 
     @application_path.setter
     def application_path(self, value: dict):
-        self.__application_path = os.path.join(PROJECT_PATH, value.get('applabel'))
+        self.__application_path = os.path.join(PROJECT_PATH,
+            value.get('applabel'))
 
     base_packages: BasePackages | None = None
 
     def initial_interface(self):
-        file_path = python_file_maker(self.base_packages.repo__interfaces.path, self.interface_name, private_=False)
+        file_path = python_file_maker(
+            self.base_packages.repo__interfaces.path, self.interface_name,
+            private_=False)
 
         with open(file_path, 'w') as f:
             f.write(
@@ -174,7 +181,8 @@ class Command(BaseCommand):
 
     def initial_schemas(self):
         p_path = package_maker(
-            self.base_packages.repo__schemas__interfaces.path, self.interface_name_snake_case)
+            self.base_packages.repo__schemas__interfaces.path,
+            self.interface_name_snake_case)
         python_file_maker(p_path, 'input_data', private_=True)
         python_file_maker(p_path, 'output_data', private_=True)
         python_file_maker(p_path, 'params', private_=True)

@@ -1,2 +1,4 @@
-from .base import AbstractBaseSchema
-from .base import AbstractBaseSchemaModel
+from .base import (
+    AbstractBaseSchema,
+    AbstractBaseSchemaModel,
+)

@@ -1,8 +1,10 @@
-GET = 'get'
-POST = 'post'
-PUT = 'put'
-PATCH = 'patch'
-DELETE = 'delete'
-HEAD = 'head'
-OPTIONS = 'options'
-TRACE = 'trace'
+from .base import (
+    GET,
+    POST,
+    PUT,
+    PATCH,
+    DELETE,
+    HEAD,
+    OPTIONS,
+    TRACE,
+)

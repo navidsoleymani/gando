@@ -1,12 +1,11 @@
-from pathlib import Path
 import os
-from pydantic import BaseModel as BaseSchema
+from pathlib import Path
 
-from django.core.management.base import BaseCommand, CommandError
 from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
 
-from gando.utils.strings.converters import casing
 from gando.utils.strings.casings import PASCAL_CASE, KEBAB_CASE
+from gando.utils.strings.converters import casing
 
 # definitions
 PROJECT_PATH = settings.BASE_DIR
@@ -36,9 +35,12 @@ def python_file_maker(path: str, name: str, private_=False) -> str:
 
 class BaseFiles:
     def __init__(self, application_path: str):
-        self.admin: str = python_file_maker(path=application_path, name='admin')
-        self.models: str = python_file_maker(path=application_path, name='models')
-        self.urls: str = python_file_maker(path=application_path, name='urls')
+        self.admin: str = python_file_maker(path=application_path,
+            name='admin')
+        self.models: str = python_file_maker(path=application_path,
+            name='models')
+        self.urls: str = python_file_maker(path=application_path,
+            name='urls')
 
 
 class BasePackageInfo:
@@ -58,25 +60,31 @@ class BasePackages:
         self.repo__schemas: BasePackageInfo = BasePackageInfo(
             path=package_maker(parent_path=self.repo.path, name='schemas'))
         self.repo__schemas__models: BasePackageInfo = BasePackageInfo(
-            path=package_maker(parent_path=self.repo__schemas.path, name='models'))
+            path=package_maker(parent_path=self.repo__schemas.path,
+                name='models'))
         self.repo__schemas__apis: BasePackageInfo = BasePackageInfo(
-            path=package_maker(parent_path=self.repo__schemas.path, name='apis'))
+            path=package_maker(parent_path=self.repo__schemas.path,
+                name='apis'))
         self.repo__schemas__services: BasePackageInfo = BasePackageInfo(
-            path=package_maker(parent_path=self.repo__schemas.path, name='services'))
+            path=package_maker(parent_path=self.repo__schemas.path,
+                name='services'))
         self.repo__urls: BasePackageInfo = BasePackageInfo(
             path=package_maker(parent_path=self.repo.path, name='urls'))
         self.repo__services: BasePackageInfo = BasePackageInfo(
-            path=package_maker(parent_path=self.repo.path, name='services'))
+            path=package_maker(parent_path=self.repo.path,
+                name='services'))
         self.repo__interfaces: BasePackageInfo = BasePackageInfo(
-            path=package_maker(parent_path=self.repo.path, name='interfaces'))
+            path=package_maker(parent_path=self.repo.path,
+                name='interfaces'))
         self.repo__apis: BasePackageInfo = BasePackageInfo(
             path=package_maker(parent_path=self.repo.path, name='apis'))
 
 
 class Command(BaseCommand):
-    help = ("This command helps us to automatically create the basic prerequisites of "
-            "this model when we define a model, so that we can personalize each of "
-            "the tools that are created automatically if needed.")
+    help = (
+        "This command helps us to automatically create the basic prerequisites of "
+        "this model when we define a model, so that we can personalize each of "
+        "the tools that are created automatically if needed.")
 
     def add_arguments(self, parser):
         """
@@ -106,7 +114,8 @@ class Command(BaseCommand):
         # set Base Files path
         self.base_files = BaseFiles(application_path=self.application_path)
         # set Base Packages path
-        self.base_packages = BasePackages(application_path=self.application_path)
+        self.base_packages = BasePackages(
+            application_path=self.application_path)
 
         self.initial_model()
 
@@ -163,7 +172,8 @@ class Command(BaseCommand):
         try:
             from django.apps import apps
 
-            apps.get_model(app_label=self.app_label, model_name=self.model_name)
+            apps.get_model(app_label=self.app_label,
+                model_name=self.model_name)
             return True
         except:
             return False
@@ -176,16 +186,19 @@ class Command(BaseCommand):
 
     @application_path.setter
     def application_path(self, value: dict):
-        self.__application_path = os.path.join(PROJECT_PATH, value.get('applabel'))
+        self.__application_path = os.path.join(PROJECT_PATH,
+            value.get('applabel'))
 
     base_files: BaseFiles | None = None
     base_packages: BasePackages | None = None
 
     def initial_model(self):
-        file_path = python_file_maker(self.base_packages.repo__models.path, self.model_name, private_=True)
+        file_path = python_file_maker(self.base_packages.repo__models.path,
+            self.model_name, private_=True)
 
         with open(file_path, 'w') as f:
-            f.write(f'from django.db import models\n\n\nclass {self.model_name}(models.Model):\n    pass\n')
+            f.write(
+                f'from django.db import models\n\n\nclass {self.model_name}(models.Model):\n    pass\n')
 
         i_fp = self.base_packages.repo__models.initial_path
         with open(i_fp, 'a') as f:
@@ -204,7 +217,8 @@ class Command(BaseCommand):
             )
 
     def initial_admin(self):
-        file_path = python_file_maker(self.base_packages.repo__admin.path, self.model_name, private_=True)
+        file_path = python_file_maker(self.base_packages.repo__admin.path,
+            self.model_name, private_=True)
 
         with open(file_path, 'w') as f:
             f.write(
@@ -231,7 +245,8 @@ class Command(BaseCommand):
             )
 
     def initial_urlpatterns(self):
-        file_path = python_file_maker(self.base_packages.repo__urls.path, self.model_name)
+        file_path = python_file_maker(self.base_packages.repo__urls.path,
+            self.model_name)
 
         with open(file_path, 'w') as f:
             f.write(
@@ -264,7 +279,9 @@ class Command(BaseCommand):
             )
 
     def initial_schemas(self):
-        file_path = python_file_maker(self.base_packages.repo__schemas__models.path, self.model_name, private_=True)
+        file_path = python_file_maker(
+            self.base_packages.repo__schemas__models.path, self.model_name,
+            private_=True)
         with open(file_path, 'w') as f:
             f.write(
                 f"from pydantic import BaseModel\n\n\n"

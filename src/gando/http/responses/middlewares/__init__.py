@@ -1,1 +1,1 @@
-from .__response_structured import JsonResponse
+from .response_structured import JsonResponse

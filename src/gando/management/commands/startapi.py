@@ -1,12 +1,11 @@
-from pathlib import Path
 import os
-from pydantic import BaseModel as BaseSchema
+from pathlib import Path
 
-from django.core.management.base import BaseCommand, CommandError
 from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
 
+from gando.utils.strings.casings import PASCAL_CASE
 from gando.utils.strings.converters import casing
-from gando.utils.strings.casings import PASCAL_CASE, KEBAB_CASE
 
 # definitions
 PROJECT_PATH = settings.BASE_DIR
@@ -47,15 +46,17 @@ class BasePackages:
         self.repo__schemas: BasePackageInfo = BasePackageInfo(
             path=package_maker(parent_path=self.repo.path, name='schemas'))
         self.repo__schemas__apis: BasePackageInfo = BasePackageInfo(
-            path=package_maker(parent_path=self.repo__schemas.path, name='apis'))
+            path=package_maker(parent_path=self.repo__schemas.path,
+                name='apis'))
         self.repo__apis: BasePackageInfo = BasePackageInfo(
             path=package_maker(parent_path=self.repo.path, name='apis'))
 
 
 class Command(BaseCommand):
-    help = ("This command helps us to automatically create the basic prerequisites of "
-            "this api when we define a api, so that we can personalize each of "
-            "the tools that are created automatically if needed.")
+    help = (
+        "This command helps us to automatically create the basic prerequisites of "
+        "this api when we define a api, so that we can personalize each of "
+        "the tools that are created automatically if needed.")
 
     def add_arguments(self, parser):
         """
@@ -83,7 +84,8 @@ class Command(BaseCommand):
         self.application_path = kwargs
 
         # set Base Packages path
-        self.base_packages = BasePackages(application_path=self.application_path)
+        self.base_packages = BasePackages(
+            application_path=self.application_path)
 
         self.initial_api()
 
@@ -151,12 +153,14 @@ class Command(BaseCommand):
 
     @application_path.setter
     def application_path(self, value: dict):
-        self.__application_path = os.path.join(PROJECT_PATH, value.get('applabel'))
+        self.__application_path = os.path.join(PROJECT_PATH,
+            value.get('applabel'))
 
     base_packages: BasePackages | None = None
 
     def initial_api(self):
-        file_path = python_file_maker(self.base_packages.repo__apis.path, self.api_name, private_=True)
+        file_path = python_file_maker(self.base_packages.repo__apis.path,
+            self.api_name, private_=True)
 
         with open(file_path, 'w') as f:
             f.write(
@@ -181,7 +185,8 @@ class Command(BaseCommand):
 
     def initial_schemas(self):
         p_path = package_maker(
-            self.base_packages.repo__schemas__apis.path, self.api_name_snake_case)
+            self.base_packages.repo__schemas__apis.path,
+            self.api_name_snake_case)
         python_file_maker(p_path, 'input_data', private_=True)
         python_file_maker(p_path, 'output_data', private_=True)
         python_file_maker(p_path, 'params', private_=True)

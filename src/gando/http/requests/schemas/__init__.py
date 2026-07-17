@@ -1,1 +1,1 @@
-from .__request import RequestSchema
+from .request import RequestSchema

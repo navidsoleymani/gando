@@ -1,2 +1,1 @@
-class PassException(Exception):
-    pass
+from .base import PassException

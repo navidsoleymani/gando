@@ -1,1 +1,1 @@
-from .__json_response import JsonResponse
+from .json_response import JsonResponse

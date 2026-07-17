@@ -1,1 +1,1 @@
-from ._ import BaseResponseSchema
+from .base import BaseResponseSchema

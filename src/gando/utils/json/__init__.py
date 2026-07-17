@@ -1,1 +1,1 @@
-from .__json import JSON
+from .json import JSON
