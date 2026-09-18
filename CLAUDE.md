@@ -21,9 +21,3 @@ of those interpreters can actually import `gando.models`. Don't trust it; run te
 
 - `pytest tests` from the repo root (198 tests as of the last hardening pass)
 - `python setup.py check -m -s` — packaging metadata sanity check
-
-## Layout
-
-`src/gando/` (src-layout package): `admin/`, `apis/`, `auth/`, `config/`, `http/`,
-`interfaces/`, `management/`, `middlewares/`, `migrations/`, `models/`, `schemas/`,
-`serializers/`, `services/`, `utils/`.
