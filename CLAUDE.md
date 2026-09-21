@@ -19,5 +19,5 @@ of those interpreters can actually import `gando.models`. Don't trust it; run te
 
 ## Commands
 
-- `pytest tests` from the repo root (198 tests as of the last hardening pass)
+- `pytest` from the repo root (`setup.cfg` already sets `testpaths = tests`)
 - `python setup.py check -m -s` — packaging metadata sanity check
