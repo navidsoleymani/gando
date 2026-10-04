@@ -11,8 +11,13 @@ pytest                               # full suite (198+ tests), tests/settings.p
                                       # in-memory SQLite Django settings module
 pytest tests/path/to_test.py::test_name   # single test
 
+python setup.py check -m -s           # packaging metadata sanity check
 python -m build                       # build the sdist/wheel locally
 ```
+
+**`tox.ini`'s `envlist` predates the Python 3.14 requirement and is stale** — none of those
+older interpreters can actually import `gando.models` (see below). Don't trust it; run `pytest`
+directly against 3.14.
 
 Requires **Python 3.14+** — `AbstractBaseModel.id` defaults to `uuid.uuid7`, only available in
 the 3.14 standard library; this is enforced via `python_requires`, not just documented.
